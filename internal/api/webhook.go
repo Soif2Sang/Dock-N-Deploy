@@ -1,0 +1,58 @@
+package api
+
+// PushEvent represents a GitHub push webhook payload
+type PushEvent struct {
+	Ref        string     `json:"ref"`
+	Before     string     `json:"before"`
+	After      string     `json:"after"`
+	Created    bool       `json:"created"`
+	Deleted    bool       `json:"deleted"`
+	Forced     bool       `json:"forced"`
+	Repository Repository `json:"repository"`
+	Pusher     Pusher     `json:"pusher"`
+	Sender     Sender     `json:"sender"`
+	HeadCommit Commit     `json:"head_commit"`
+	Commits    []Commit   `json:"commits"`
+}
+
+// Repository represents the repository information in the webhook
+type Repository struct {
+	ID            int    `json:"id"`
+	Name          string `json:"name"`
+	FullName      string `json:"full_name"`
+	CloneURL      string `json:"clone_url"`
+	SSHURL        string `json:"ssh_url"`
+	DefaultBranch string `json:"default_branch"`
+	Private       bool   `json:"private"`
+}
+
+// Pusher represents who pushed the commits
+type Pusher struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+// Sender represents the GitHub user who triggered the event
+type Sender struct {
+	Login string `json:"login"`
+	ID    int    `json:"id"`
+}
+
+// Commit represents a commit in the push event
+type Commit struct {
+	ID        string       `json:"id"`
+	Message   string       `json:"message"`
+	Timestamp string       `json:"timestamp"`
+	Author    CommitAuthor `json:"author"`
+	URL       string       `json:"url"`
+	Added     []string     `json:"added"`
+	Removed   []string     `json:"removed"`
+	Modified  []string     `json:"modified"`
+}
+
+// CommitAuthor represents the author of a commit
+type CommitAuthor struct {
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
+}

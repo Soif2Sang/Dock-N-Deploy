@@ -1,0 +1,457 @@
+openapi: 3.0.3
+info:
+  title: IMT Cloud CI/CD API
+  description: API for managing projects, pipelines, jobs, and logs in the CI/CD platform.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/api/v1
+paths:
+  /projects:
+    get:
+      summary: List all projects
+      tags: [Projects]
+      responses:
+        '200':
+          description: A list of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      example: 1
+                    name:
+                      type: string
+                      example: "My Project"
+                    repo_url:
+                      type: string
+                      example: "https://github.com/user/repo.git"
+                    access_token:
+                      type: string
+                      example: "DFOEIlksvddmcklvpcdp$s"
+                    created_at:
+                      type: string
+                      format: date-time
+                      example: "2023-10-27T10:00:00Z"
+    post:
+      summary: Create a new project
+      tags: [Projects]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - repo_url
+              properties:
+                name:
+                  type: string
+                  example: "My Project"
+                repo_url:
+                  type: string
+                  example: "https://github.com/user/repo.git"
+                access_token:
+                  type: string
+                  example: "fepijrefgoiorgiejge^rop"
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 1
+                  name:
+                    type: string
+                    example: "My Project"
+                  repo_url:
+                    type: string
+                    example: "https://github.com/user/repo.git"
+                  created_at:
+                    type: string
+                    format: date-time
+                    example: "2023-10-27T10:00:00Z"
+
+  /projects/{projectId}:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      summary: Get a project by ID
+      tags: [Projects]
+      responses:
+        '200':
+          description: Project details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 1
+                  name:
+                    type: string
+                    example: "My Project"
+                  repo_url:
+                    type: string
+                    example: "https://github.com/user/repo.git"
+                  created_at:
+                    type: string
+                    format: date-time
+                    example: "2023-10-27T10:00:00Z"
+        '404':
+          description: Project not found
+    put:
+      summary: Update a project
+      tags: [Projects]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - repo_url
+              properties:
+                name:
+                  type: string
+                  example: "My Project"
+                repo_url:
+                  type: string
+                  example: "https://github.com/user/repo.git"
+      responses:
+        '200':
+          description: Project updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 1
+                  name:
+                    type: string
+                    example: "My Project"
+                  repo_url:
+                    type: string
+                    example: "https://github.com/user/repo.git"
+                  created_at:
+                    type: string
+                    format: date-time
+                    example: "2023-10-27T10:00:00Z"
+    delete:
+      summary: Delete a project
+      tags: [Projects]
+      responses:
+        '204':
+          description: Project deleted
+
+  /projects/{projectId}/pipelines:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      summary: List all pipelines for a project
+      tags: [Pipelines]
+      responses:
+        '200':
+          description: List of pipelines
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      example: 101
+                    project_id:
+                      type: integer
+                      example: 1
+                    status:
+                      type: string
+                      enum: [pending, running, success, failed]
+                      example: "success"
+                    commit_hash:
+                      type: string
+                      example: "a1b2c3d4"
+                    branch:
+                      type: string
+                      example: "main"
+                    created_at:
+                      type: string
+                      format: date-time
+                      example: "2023-10-27T10:05:00Z"
+                    finished_at:
+                      type: string
+                      format: date-time
+                      example: "2023-10-27T10:10:00Z"
+    post:
+      summary: Trigger a new pipeline for a project
+      tags: [Pipelines]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                branch:
+                  type: string
+                  default: main
+                  example: "main"
+      responses:
+        '201':
+          description: Pipeline triggered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 101
+                  project_id:
+                    type: integer
+                    example: 1
+                  status:
+                    type: string
+                    enum: [pending, running, success, failed]
+                    example: "pending"
+                  commit_hash:
+                    type: string
+                    example: "a1b2c3d4"
+                  branch:
+                    type: string
+                    example: "main"
+                  created_at:
+                    type: string
+                    format: date-time
+                    example: "2023-10-27T10:05:00Z"
+                  finished_at:
+                    type: string
+                    format: date-time
+
+  /projects/{projectId}/pipelines/{pipelineId}:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: pipelineId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      summary: Get pipeline details
+      tags: [Pipelines]
+      responses:
+        '200':
+          description: Pipeline details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 101
+                  project_id:
+                    type: integer
+                    example: 1
+                  status:
+                    type: string
+                    enum: [pending, running, success, failed]
+                    example: "success"
+                  commit_hash:
+                    type: string
+                    example: "a1b2c3d4"
+                  branch:
+                    type: string
+                    example: "main"
+                  created_at:
+                    type: string
+                    format: date-time
+                    example: "2023-10-27T10:05:00Z"
+                  finished_at:
+                    type: string
+                    format: date-time
+                    example: "2023-10-27T10:10:00Z"
+
+  /projects/{projectId}/pipelines/{pipelineId}/jobs:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: pipelineId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      summary: List jobs for a pipeline
+      tags: [Jobs]
+      responses:
+        '200':
+          description: List of jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      example: 501
+                    pipeline_id:
+                      type: integer
+                      example: 101
+                    name:
+                      type: string
+                      example: "build_job"
+                    stage:
+                      type: string
+                      example: "build"
+                    image:
+                      type: string
+                      example: "golang:1.21"
+                    status:
+                      type: string
+                      enum: [pending, running, success, failed]
+                      example: "success"
+                    exit_code:
+                      type: integer
+                      example: 0
+                    started_at:
+                      type: string
+                      format: date-time
+                      example: "2023-10-27T10:05:30Z"
+                    finished_at:
+                      type: string
+                      format: date-time
+                      example: "2023-10-27T10:08:00Z"
+
+  /projects/{projectId}/pipelines/{pipelineId}/jobs/{jobId}:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: pipelineId
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      summary: Get job details
+      tags: [Jobs]
+      responses:
+        '200':
+          description: Job details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 501
+                  pipeline_id:
+                    type: integer
+                    example: 101
+                  name:
+                    type: string
+                    example: "build_job"
+                  stage:
+                    type: string
+                    example: "build"
+                  image:
+                    type: string
+                    example: "golang:1.21"
+                  status:
+                    type: string
+                    enum: [pending, running, success, failed]
+                    example: "success"
+                  exit_code:
+                    type: integer
+                    example: 0
+                  started_at:
+                    type: string
+                    format: date-time
+                    example: "2023-10-27T10:05:30Z"
+                  finished_at:
+                    type: string
+                    format: date-time
+                    example: "2023-10-27T10:08:00Z"
+
+  /projects/{projectId}/pipelines/{pipelineId}/jobs/{jobId}/logs:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: pipelineId
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      summary: Get logs for a job
+      tags: [Logs]
+      responses:
+        '200':
+          description: Job logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      example: 1001
+                    job_id:
+                      type: integer
+                      example: 501
+                    content:
+                      type: string
+                      example: "Building binary..."
+                    created_at:
+                      type: string
+                      format: date-time
+                      example: "2023-10-27T10:05:35Z"
