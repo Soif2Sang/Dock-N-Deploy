@@ -223,8 +223,7 @@ job_name:
 │   └── parser/
 │       └── parser.go       # YAML config parser
 ├── docker-compose.yml      # PostgreSQL + Adminer
-├── init-db.sql             # Database schema
-└── schema.sql              # SQLite schema (reference)
+└── init-db.sql             # Database schema
 ```
 
 ## Stopping the services

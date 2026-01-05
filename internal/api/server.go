@@ -21,7 +21,7 @@ import (
 // Server represents the API server
 type Server struct {
 	db     *database.DB
-	docker *executor.DockerExecutor
+	docker *executor.Executor
 	port   string
 }
 

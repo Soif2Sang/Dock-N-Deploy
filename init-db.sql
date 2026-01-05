@@ -1,5 +1,4 @@
 -- PostgreSQL initialization script for CI/CD backend
--- Based on schema.sql but adapted for PostgreSQL syntax
 
 -- Table des projets (Repositories)
 CREATE TABLE IF NOT EXISTS projects (

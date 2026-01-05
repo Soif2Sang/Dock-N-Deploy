@@ -15,85 +15,77 @@ import (
 	"github.com/docker/go-connections/nat"
 )
 
-// Executor combines Docker for CI/CD job execution and Kubernetes for deployment
-type Executor struct {
-	cli        *client.Client
-	ctx        context.Context
-	kubeconfig string
-	namespace  string
+type DockerExecutor struct {
+	cli *client.Client
+	ctx context.Context
 }
 
-// NewExecutor creates a new unified executor with Docker and Kubernetes support
-func NewExecutor(kubeconfig, namespace string) (*Executor, error) {
+func NewDockerExecutor() (*DockerExecutor, error) {
+	// Initialise le client en utilisant les variables d'environnement locales
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, err
 	}
-	if namespace == "" {
-		namespace = "default"
-	}
-	return &Executor{
-		cli:        cli,
-		ctx:        context.Background(),
-		kubeconfig: kubeconfig,
-		namespace:  namespace,
+	return &DockerExecutor{
+		cli: cli,
+		ctx: context.Background(),
 	}, nil
 }
 
-// NewDockerExecutor creates an executor for backward compatibility (Docker only)
-func NewDockerExecutor() (*Executor, error) {
-	return NewExecutor("", "default")
-}
-
-// ============================================
-// DOCKER METHODS - For running CI/CD jobs
-// ============================================
-
-func (e *Executor) PullImage(imageName string) error {
+func (e *DockerExecutor) PullImage(imageName string) error {
 	reader, err := e.cli.ImagePull(e.ctx, imageName, image.PullOptions{})
 	if err != nil {
 		return err
 	}
 	defer reader.Close()
+	// On lit le flux jusqu'au bout pour attendre la fin du pull
 	_, err = io.Copy(io.Discard, reader)
 	return err
 }
 
-func (e *Executor) RunJob(imageName string, commands []string) (string, error) {
+func (e *DockerExecutor) RunJob(imageName string, commands []string) (string, error) {
+	// On concatène les commandes avec " && " pour qu'elles s'exécutent séquentiellement
 	cmdString := strings.Join(commands, " && ")
 
+	// 1. Configurer le conteneur avec vos commandes
 	resp, err := e.cli.ContainerCreate(e.ctx, &container.Config{
 		Image:      imageName,
-		Cmd:        []string{"sh", "-c", cmdString},
+		Cmd:        []string{"sh", "-c", cmdString}, // On encapsule dans un shell
 		WorkingDir: "/workspace",
 	}, nil, nil, nil, "")
 	if err != nil {
 		return "", err
 	}
 
+	// 2. Démarrer le conteneur
 	err = e.cli.ContainerStart(e.ctx, resp.ID, container.StartOptions{})
 	return resp.ID, err
 }
 
 // RunJobWithVolume runs a job with a workspace directory mounted into the container
 // It also mounts the Docker socket to allow Docker-out-of-Docker (DooD)
-func (e *Executor) RunJobWithVolume(imageName string, commands []string, workspacePath string, envVars []string) (string, error) {
+func (e *DockerExecutor) RunJobWithVolume(imageName string, commands []string, workspacePath string, envVars []string) (string, error) {
+	// On concatène les commandes avec " && " pour qu'elles s'exécutent séquentiellement
 	cmdString := strings.Join(commands, " && ")
 
+	// Configuration du conteneur
 	containerConfig := &container.Config{
 		Image:      imageName,
 		Cmd:        []string{"sh", "-c", cmdString},
-		WorkingDir: "/workspace",
-		Env:        envVars,
+		WorkingDir: "/workspace", // Le répertoire de travail dans le conteneur
+		Env:        envVars,      // Injection des variables d'environnement
 	}
 
+	// Configuration de l'hôte avec le volume monté
 	hostConfig := &container.HostConfig{
 		Mounts: []mount.Mount{
 			{
 				Type:   mount.TypeBind,
-				Source: workspacePath,
-				Target: "/workspace",
+				Source: workspacePath,        // Chemin sur l'hôte
+				Target: "/workspace",         // Chemin dans le conteneur
 			},
+			// Montage du socket Docker pour permettre le Docker-out-of-Docker (DooD)
+			// Cela permet au conteneur de lancer des commandes docker (build, run, push)
 			{
 				Type:   mount.TypeBind,
 				Source: "/var/run/docker.sock",
@@ -102,24 +94,26 @@ func (e *Executor) RunJobWithVolume(imageName string, commands []string, workspa
 		},
 	}
 
+	// Créer le conteneur
 	resp, err := e.cli.ContainerCreate(e.ctx, containerConfig, hostConfig, nil, nil, "")
 	if err != nil {
 		return "", err
 	}
 
+	// Démarrer le conteneur
 	err = e.cli.ContainerStart(e.ctx, resp.ID, container.StartOptions{})
 	return resp.ID, err
 }
 
-func (e *Executor) GetLogs(containerID string) (io.ReadCloser, error) {
+func (e *DockerExecutor) GetLogs(containerID string) (io.ReadCloser, error) {
 	return e.cli.ContainerLogs(e.ctx, containerID, container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
-		Follow:     true,
+		Follow:     true, // Important pour le temps réel
 	})
 }
 
-func (e *Executor) WaitForContainer(containerID string) (int64, error) {
+func (e *DockerExecutor) WaitForContainer(containerID string) (int64, error) {
 	statusCh, errCh := e.cli.ContainerWait(e.ctx, containerID, container.WaitConditionNotRunning)
 	select {
 	case err := <-errCh:
@@ -130,18 +124,14 @@ func (e *Executor) WaitForContainer(containerID string) (int64, error) {
 }
 
 // RemoveContainer removes a container (cleanup)
-func (e *Executor) RemoveContainer(containerID string) error {
+func (e *DockerExecutor) RemoveContainer(containerID string) error {
 	return e.cli.ContainerRemove(e.ctx, containerID, container.RemoveOptions{
 		Force: true,
 	})
 }
 
-// ============================================
-// DOCKER DEPLOYMENT METHODS - Legacy support
-// ============================================
-
 // DeploySingleContainer deploys a single container with rollback capability
-func (e *Executor) DeploySingleContainer(imageName, containerName, portMapping string) error {
+func (e *DockerExecutor) DeploySingleContainer(imageName, containerName, portMapping string) error {
 	ctx := e.ctx
 
 	// 1. Check if container exists and prepare backup
@@ -172,7 +162,7 @@ func (e *Executor) DeploySingleContainer(imageName, containerName, portMapping s
 	}
 
 	// 3. Health Check
-	time.Sleep(5 * time.Second)
+	time.Sleep(5 * time.Second) // Wait for startup
 	inspect, err := e.cli.ContainerInspect(ctx, containerName)
 	if err != nil || !inspect.State.Running || inspect.State.Restarting {
 		// Rollback if health check failed
@@ -193,7 +183,7 @@ func (e *Executor) DeploySingleContainer(imageName, containerName, portMapping s
 }
 
 // startContainer is a helper to create and start a container
-func (e *Executor) startContainer(imageID, containerName, portMapping string) error {
+func (e *DockerExecutor) startContainer(imageID, containerName, portMapping string) error {
 	ctx := e.ctx
 
 	// Configure ports
@@ -234,33 +224,34 @@ func (e *Executor) startContainer(imageID, containerName, portMapping string) er
 }
 
 // DeployCompose deploys using docker-compose with rollback capability
-func (e *Executor) DeployCompose(workDir, composeFile, serviceName string) error {
+func (e *DockerExecutor) DeployCompose(workDir, composeFile, serviceName string) error {
 	ctx := e.ctx
 
 	// 1. Snapshot: Identify currently running containers and tag their images
+	// We check ALL containers in the stack to ensure full rollback capability
 	cmdPs := exec.Command("docker-compose", "-f", composeFile, "ps", "-q")
 	cmdPs.Dir = workDir
 	output, err := cmdPs.Output()
-
-	backupImages := make(map[string]string)
+	
+	backupImages := make(map[string]string) // ImageName -> ImageID
 
 	if err == nil && len(output) > 0 {
 		containerIDs := strings.Split(strings.TrimSpace(string(output)), "\n")
 		for _, cid := range containerIDs {
-			if cid == "" {
-				continue
-			}
+			if cid == "" { continue }
 			info, err := e.cli.ContainerInspect(ctx, cid)
 			if err != nil {
 				continue
 			}
-
-			imageName := info.Config.Image
-			imageID := info.Image
-
+			
+			imageName := info.Config.Image // e.g. "my-app:latest"
+			imageID := info.Image          // e.g. "sha256:..."
+			
 			if imageName != "" {
 				backupImages[imageName] = imageID
+				// Create a backup tag
 				backupTag := imageName + "-rollback"
+				// Ignore error if tag already exists or fails, we try our best
 				e.cli.ImageTag(ctx, imageID, backupTag)
 			}
 		}
@@ -273,13 +264,16 @@ func (e *Executor) DeployCompose(workDir, composeFile, serviceName string) error
 			return
 		}
 		fmt.Println("Performing rollback...")
-
+		
+		// Restore tags
 		for name, id := range backupImages {
+			// Force tag the old ID back to the original name
 			if err := e.cli.ImageTag(ctx, id, name); err != nil {
 				fmt.Printf("Error restoring tag %s: %v\n", name, err)
 			}
 		}
-
+		
+		// Force recreate containers to use the restored tags
 		argsRollback := []string{"-f", composeFile, "up", "-d", "--force-recreate"}
 		cmdRollback := exec.Command("docker-compose", argsRollback...)
 		cmdRollback.Dir = workDir
@@ -316,6 +310,7 @@ func (e *Executor) DeployCompose(workDir, composeFile, serviceName string) error
 	// 4. Health Check
 	time.Sleep(10 * time.Second)
 
+	// Check if ALL containers in the stack are running
 	cmdHealth := exec.Command("docker-compose", "-f", composeFile, "ps", "-q")
 	cmdHealth.Dir = workDir
 	outHealth, err := cmdHealth.Output()
@@ -323,13 +318,11 @@ func (e *Executor) DeployCompose(workDir, composeFile, serviceName string) error
 		performRollback()
 		return fmt.Errorf("health check failed (ps error): %v", err)
 	}
-
+	
 	cids := strings.Split(strings.TrimSpace(string(outHealth)), "\n")
 	allRunning := true
 	for _, cid := range cids {
-		if cid == "" {
-			continue
-		}
+		if cid == "" { continue }
 		info, err := e.cli.ContainerInspect(ctx, cid)
 		if err != nil {
 			allRunning = false
@@ -352,176 +345,5 @@ func (e *Executor) DeployCompose(workDir, composeFile, serviceName string) error
 		e.cli.ImageRemove(ctx, name+"-rollback", image.RemoveOptions{})
 	}
 
-	return nil
-}
-
-// ============================================
-// KUBERNETES METHODS - For K8s deployment
-// ============================================
-
-// DeployToKubernetes deploys to a Kubernetes cluster using kubectl
-func (e *Executor) DeployToKubernetes(deploymentName, imageName, imageTag string) error {
-	fullImage := fmt.Sprintf("%s:%s", imageName, imageTag)
-
-	args := []string{
-		"set", "image",
-		fmt.Sprintf("deployment/%s", deploymentName),
-		fmt.Sprintf("%s=%s", deploymentName, fullImage),
-		"-n", e.namespace,
-	}
-
-	if e.kubeconfig != "" {
-		args = append([]string{"--kubeconfig", e.kubeconfig}, args...)
-	}
-
-	cmd := exec.CommandContext(e.ctx, "kubectl", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to deploy: %s: %w", string(output), err)
-	}
-
-	return e.WaitForRollout(deploymentName)
-}
-
-// WaitForRollout waits for a Kubernetes deployment rollout to complete
-func (e *Executor) WaitForRollout(deploymentName string) error {
-	args := []string{
-		"rollout", "status",
-		fmt.Sprintf("deployment/%s", deploymentName),
-		"-n", e.namespace,
-		"--timeout=5m",
-	}
-
-	if e.kubeconfig != "" {
-		args = append([]string{"--kubeconfig", e.kubeconfig}, args...)
-	}
-
-	cmd := exec.CommandContext(e.ctx, "kubectl", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("rollout failed: %s: %w", string(output), err)
-	}
-
-	return nil
-}
-
-// RollbackKubernetes performs a rollback on a Kubernetes deployment
-func (e *Executor) RollbackKubernetes(deploymentName string) error {
-	args := []string{
-		"rollout", "undo",
-		fmt.Sprintf("deployment/%s", deploymentName),
-		"-n", e.namespace,
-	}
-
-	if e.kubeconfig != "" {
-		args = append([]string{"--kubeconfig", e.kubeconfig}, args...)
-	}
-
-	cmd := exec.CommandContext(e.ctx, "kubectl", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("rollback failed: %s: %w", string(output), err)
-	}
-
-	return e.WaitForRollout(deploymentName)
-}
-
-// ApplyManifest applies a Kubernetes manifest file
-func (e *Executor) ApplyManifest(manifestPath string) error {
-	args := []string{
-		"apply",
-		"-f", manifestPath,
-		"-n", e.namespace,
-	}
-
-	if e.kubeconfig != "" {
-		args = append([]string{"--kubeconfig", e.kubeconfig}, args...)
-	}
-
-	cmd := exec.CommandContext(e.ctx, "kubectl", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("apply failed: %s: %w", string(output), err)
-	}
-
-	fmt.Printf("Applied manifest: %s\n", string(output))
-	return nil
-}
-
-// DeployWithHealthCheck deploys to Kubernetes with automated health check and rollback
-func (e *Executor) DeployWithHealthCheck(deploymentName, imageName, imageTag string) error {
-	// Deploy
-	if err := e.DeployToKubernetes(deploymentName, imageName, imageTag); err != nil {
-		return fmt.Errorf("deployment failed: %w", err)
-	}
-
-	// Health check
-	time.Sleep(10 * time.Second)
-
-	args := []string{
-		"get", "pods",
-		"-l", fmt.Sprintf("app=%s", deploymentName),
-		"-n", e.namespace,
-		"-o", "jsonpath={.items[*].status.phase}",
-	}
-
-	if e.kubeconfig != "" {
-		args = append([]string{"--kubeconfig", e.kubeconfig}, args...)
-	}
-
-	cmd := exec.CommandContext(e.ctx, "kubectl", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil || strings.Contains(string(output), "Failed") || strings.Contains(string(output), "Error") {
-		fmt.Println("Health check failed, rolling back...")
-		e.RollbackKubernetes(deploymentName)
-		return fmt.Errorf("deployment failed health check")
-	}
-
-	fmt.Println("Deployment successful!")
-	return nil
-}
-
-// GetPodStatus returns the status of pods for a deployment
-func (e *Executor) GetPodStatus(deploymentName string) (string, error) {
-	args := []string{
-		"get", "pods",
-		"-l", fmt.Sprintf("app=%s", deploymentName),
-		"-n", e.namespace,
-		"-o", "wide",
-	}
-
-	if e.kubeconfig != "" {
-		args = append([]string{"--kubeconfig", e.kubeconfig}, args...)
-	}
-
-	cmd := exec.CommandContext(e.ctx, "kubectl", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("failed to get pod status: %w", err)
-	}
-
-	return string(output), nil
-}
-
-// ScaleDeployment scales a Kubernetes deployment to the specified number of replicas
-func (e *Executor) ScaleDeployment(deploymentName string, replicas int) error {
-	args := []string{
-		"scale",
-		fmt.Sprintf("deployment/%s", deploymentName),
-		fmt.Sprintf("--replicas=%d", replicas),
-		"-n", e.namespace,
-	}
-
-	if e.kubeconfig != "" {
-		args = append([]string{"--kubeconfig", e.kubeconfig}, args...)
-	}
-
-	cmd := exec.CommandContext(e.ctx, "kubectl", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("scaling failed: %s: %w", string(output), err)
-	}
-
-	time.Sleep(5 * time.Second)
 	return nil
 }
