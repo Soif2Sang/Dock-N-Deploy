@@ -13,46 +13,72 @@ A lightweight CI/CD engine built in Go that executes pipelines using Docker cont
 ## Architecture
 
 ```
-GitHub Push → Webhook → Clone Repo → Parse .gitlab-ci.yml → Run Jobs → Store Logs
+GitHub Push → Webhook → Clone Repo → Parse .gitlab-ci.yml → Run Jobs in Docker → Store Logs
 ```
+
+**Setup:**
+- PostgreSQL + Adminer → Run in Docker
+- Go backend → Run locally (avoids Docker-in-Docker issues)
 
 ## Prerequisites
 
-- Docker
-- Docker Compose
+- Go 1.21+
+- Docker & Docker Compose
+- Git
 
 ## Quick Start
 
-### 1. Start the services
+### 1. Start the database
 
 ```bash
 docker-compose up -d
 ```
 
-This will start:
-- **cicd-backend** - The CI/CD engine on port `8080`
+This starts:
 - **cicd-db** - PostgreSQL database on port `5432`
 - **cicd-adminer** - Database viewer on port `8081`
 
-### 2. Access the services
-
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| Webhook Endpoint | http://localhost:8080/webhook/github | - |
-| Health Check | http://localhost:8080/health | - |
-| Adminer (DB Viewer) | http://localhost:8081 | System: PostgreSQL, Server: db, User: cicd, Password: cicd_password, Database: cicd_db |
-
-### 3. View logs
+### 2. Build and run the Go backend
 
 ```bash
-docker-compose logs -f backend
+# Install dependencies
+go mod tidy
+
+# Build
+go build -o cicd-backend .
+
+# Run
+export DATABASE_URL="postgres://cicd:cicd_password@localhost:5432/cicd_db?sslmode=disable"
+./cicd-backend
 ```
+
+Or run directly:
+
+```bash
+DATABASE_URL="postgres://cicd:cicd_password@localhost:5432/cicd_db?sslmode=disable" go run .
+```
+
+### 3. Access the services
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| Backend API | http://localhost:8080 | CI/CD engine |
+| Webhook Endpoint | http://localhost:8080/webhook/github | GitHub webhook receiver |
+| Health Check | http://localhost:8080/health | Server status |
+| Adminer | http://localhost:8081 | Database viewer |
+
+**Adminer credentials:**
+- System: `PostgreSQL`
+- Server: `localhost`
+- Username: `cicd`
+- Password: `cicd_password`
+- Database: `cicd_db`
 
 ## GitHub Webhook Setup
 
 ### 1. Expose your backend (for local development)
 
-Use [ngrok](https://ngrok.com/) or similar to expose your local server:
+Use [ngrok](https://ngrok.com/) to expose your local server:
 
 ```bash
 ngrok http 8080
@@ -66,7 +92,6 @@ This gives you a public URL like `https://abc123.ngrok.io`
 2. Configure:
    - **Payload URL**: `https://abc123.ngrok.io/webhook/github`
    - **Content type**: `application/json`
-   - **Secret**: (optional, not implemented yet)
    - **Events**: Select "Just the push event"
 3. Click **Add webhook**
 
@@ -113,8 +138,7 @@ The backend will:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgres://cicd:cicd_password@db:5432/cicd_db?sslmode=disable` |
-| `DOCKER_HOST` | Docker socket path | `unix:///var/run/docker.sock` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgres://cicd:cicd_password@localhost:5432/cicd_db?sslmode=disable` |
 | `API_PORT` | Server port | `8080` |
 
 ## API Endpoints
@@ -144,8 +168,6 @@ Receives GitHub push events and triggers pipelines.
 ```
 GET /health
 ```
-
-Returns server status.
 
 **Response:**
 ```json
@@ -181,41 +203,6 @@ job_name:
     - npm run build
 ```
 
-## Development
-
-### Build locally
-
-```bash
-go mod tidy
-go build -o cicd-backend .
-```
-
-### Run locally
-
-```bash
-export DATABASE_URL="postgres://cicd:cicd_password@localhost:5432/cicd_db?sslmode=disable"
-./cicd-backend
-```
-
-### Rebuild Docker image
-
-```bash
-docker-compose build --no-cache backend
-docker-compose up -d
-```
-
-## Stopping the services
-
-```bash
-docker-compose down
-```
-
-To also remove the database volume:
-
-```bash
-docker-compose down -v
-```
-
 ## Project Structure
 
 ```
@@ -235,10 +222,41 @@ docker-compose down -v
 │   │   └── models.go       # Data models
 │   └── parser/
 │       └── parser.go       # YAML config parser
-├── Dockerfile
-├── docker-compose.yml
-├── init-db.sql
-└── schema.sql
+├── docker-compose.yml      # PostgreSQL + Adminer
+├── init-db.sql             # Database schema
+└── schema.sql              # SQLite schema (reference)
+```
+
+## Stopping the services
+
+```bash
+# Stop database
+docker-compose down
+
+# Stop with data cleanup
+docker-compose down -v
+```
+
+## Testing the webhook manually
+
+```bash
+curl -X POST http://localhost:8080/webhook/github \
+  -H "Content-Type: application/json" \
+  -H "X-GitHub-Event: push" \
+  -d '{
+    "ref": "refs/heads/main",
+    "after": "abc123def456",
+    "deleted": false,
+    "repository": {
+      "name": "test-repo",
+      "full_name": "user/test-repo",
+      "clone_url": "https://github.com/user/test-repo.git"
+    },
+    "head_commit": {
+      "id": "abc123def456",
+      "message": "test commit"
+    }
+  }'
 ```
 
 ## License

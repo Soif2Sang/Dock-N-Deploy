@@ -1,0 +1,350 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "IMT Cloud CI/CD API",
+		"description": "API for managing projects, pipelines, jobs, and logs in the CI/CD platform.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "projectId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "pipelineId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "jobId",
+			"value": "1",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Projects",
+			"item": [
+				{
+					"name": "List all projects",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/projects",
+							"host": ["{{baseUrl}}"],
+							"path": ["projects"]
+						},
+						"description": "Get a list of all projects"
+					},
+					"response": []
+				},
+				{
+					"name": "Create a new project",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"My Project\",\n    \"repo_url\": \"https://github.com/user/repo.git\",\n    \"access_token\": \"ghp_xxxxxxxxxxxxxxxxxxxx\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/projects",
+							"host": ["{{baseUrl}}"],
+							"path": ["projects"]
+						},
+						"description": "Create a new project"
+					},
+					"response": []
+				},
+				{
+					"name": "Get a project by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/projects/{{projectId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["projects", "{{projectId}}"]
+						},
+						"description": "Get details of a specific project"
+					},
+					"response": []
+				},
+				{
+					"name": "Update a project",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"My Updated Project\",\n    \"repo_url\": \"https://github.com/user/updated-repo.git\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/projects/{{projectId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["projects", "{{projectId}}"]
+						},
+						"description": "Update an existing project"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete a project",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/projects/{{projectId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["projects", "{{projectId}}"]
+						},
+						"description": "Delete a project by ID"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for managing projects"
+		},
+		{
+			"name": "Pipelines",
+			"item": [
+				{
+					"name": "List all pipelines for a project",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/projects/{{projectId}}/pipelines",
+							"host": ["{{baseUrl}}"],
+							"path": ["projects", "{{projectId}}", "pipelines"]
+						},
+						"description": "Get all pipelines for a specific project"
+					},
+					"response": []
+				},
+				{
+					"name": "Trigger a new pipeline",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"branch\": \"main\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/projects/{{projectId}}/pipelines",
+							"host": ["{{baseUrl}}"],
+							"path": ["projects", "{{projectId}}", "pipelines"]
+						},
+						"description": "Trigger a new pipeline for a project"
+					},
+					"response": []
+				},
+				{
+					"name": "Get pipeline details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/projects/{{projectId}}/pipelines/{{pipelineId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["projects", "{{projectId}}", "pipelines", "{{pipelineId}}"]
+						},
+						"description": "Get details of a specific pipeline"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for managing pipelines"
+		},
+		{
+			"name": "Jobs",
+			"item": [
+				{
+					"name": "List jobs for a pipeline",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/projects/{{projectId}}/pipelines/{{pipelineId}}/jobs",
+							"host": ["{{baseUrl}}"],
+							"path": ["projects", "{{projectId}}", "pipelines", "{{pipelineId}}", "jobs"]
+						},
+						"description": "Get all jobs for a specific pipeline"
+					},
+					"response": []
+				},
+				{
+					"name": "Get job details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/projects/{{projectId}}/pipelines/{{pipelineId}}/jobs/{{jobId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["projects", "{{projectId}}", "pipelines", "{{pipelineId}}", "jobs", "{{jobId}}"]
+						},
+						"description": "Get details of a specific job"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for managing jobs"
+		},
+		{
+			"name": "Logs",
+			"item": [
+				{
+					"name": "Get logs for a job",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/projects/{{projectId}}/pipelines/{{pipelineId}}/jobs/{{jobId}}/logs",
+							"host": ["{{baseUrl}}"],
+							"path": ["projects", "{{projectId}}", "pipelines", "{{pipelineId}}", "jobs", "{{jobId}}", "logs"]
+						},
+						"description": "Get all logs for a specific job"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for retrieving logs"
+		},
+		{
+			"name": "Webhook",
+			"item": [
+				{
+					"name": "GitHub Push Webhook",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-GitHub-Event",
+								"value": "push"
+							},
+							{
+								"key": "X-GitHub-Delivery",
+								"value": "test-delivery-id"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"ref\": \"refs/heads/main\",\n    \"before\": \"0000000000000000000000000000000000000000\",\n    \"after\": \"1ac21a8075fde11939637d0cafc182b3680c77c8\",\n    \"created\": false,\n    \"deleted\": false,\n    \"forced\": false,\n    \"repository\": {\n        \"id\": 1000000000,\n        \"name\": \"imt-cloud-CI-CD-backend\",\n        \"full_name\": \"Soif2Sang/imt-cloud-CI-CD-backend\",\n        \"clone_url\": \"https://github.com/Soif2Sang/imt-cloud-CI-CD-backend.git\",\n        \"ssh_url\": \"git@github.com:Soif2Sang/imt-cloud-CI-CD-backend.git\",\n        \"default_branch\": \"main\",\n        \"private\": false\n    },\n    \"pusher\": {\n        \"name\": \"Soif2Sang\",\n        \"email\": \"soif2sang@users.noreply.github.com\"\n    },\n    \"sender\": {\n        \"login\": \"Soif2Sang\",\n        \"id\": 12345678\n    },\n    \"head_commit\": {\n        \"id\": \"1ac21a8075fde11939637d0cafc182b3680c77c8\",\n        \"message\": \"Initial commit\",\n        \"timestamp\": \"2024-01-15T10:30:00Z\",\n        \"author\": {\n            \"name\": \"Soif2Sang\",\n            \"email\": \"soif2sang@users.noreply.github.com\",\n            \"username\": \"Soif2Sang\"\n        },\n        \"url\": \"https://github.com/Soif2Sang/imt-cloud-CI-CD-backend/commit/1ac21a8075fde11939637d0cafc182b3680c77c8\",\n        \"added\": [],\n        \"removed\": [],\n        \"modified\": []\n    },\n    \"commits\": []\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8080/webhook/github",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8080",
+							"path": ["webhook", "github"]
+						},
+						"description": "Simulate a GitHub push webhook event for Soif2Sang/imt-cloud-CI-CD-backend repository"
+					},
+					"response": []
+				}
+			],
+			"description": "Webhook endpoints"
+		},
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8080/health",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8080",
+							"path": ["health"]
+						},
+						"description": "Check if the server is running"
+					},
+					"response": []
+				}
+			],
+			"description": "Health check endpoints"
+		}
+	]
+}
