@@ -41,11 +41,77 @@ func NewServer(db *database.DB, port string) (*Server, error) {
 
 // Start starts the API server
 func (s *Server) Start() error {
-	http.HandleFunc("/webhook/github", s.handleGitHubWebhook)
+	// Health check
 	http.HandleFunc("/health", s.handleHealth)
 
+	// Webhook
+	http.HandleFunc("/webhook/github", s.handleGitHubWebhook)
+
+	// API v1 routes
+	http.HandleFunc("/api/v1/projects", s.handleProjects)
+	http.HandleFunc("/api/v1/projects/", s.routeProjectsSubpath)
+
 	log.Printf("Starting API server on port %s", s.port)
+	log.Printf("Endpoints:")
+	log.Printf("  - GET    /health")
+	log.Printf("  - POST   /webhook/github")
+	log.Printf("  - GET    /api/v1/projects")
+	log.Printf("  - POST   /api/v1/projects")
+	log.Printf("  - GET    /api/v1/projects/{id}")
+	log.Printf("  - PUT    /api/v1/projects/{id}")
+	log.Printf("  - DELETE /api/v1/projects/{id}")
+	log.Printf("  - GET    /api/v1/projects/{id}/pipelines")
+	log.Printf("  - POST   /api/v1/projects/{id}/pipelines")
+	log.Printf("  - GET    /api/v1/projects/{id}/pipelines/{id}")
+	log.Printf("  - GET    /api/v1/projects/{id}/pipelines/{id}/jobs")
+	log.Printf("  - GET    /api/v1/projects/{id}/pipelines/{id}/jobs/{id}")
+	log.Printf("  - GET    /api/v1/projects/{id}/pipelines/{id}/jobs/{id}/logs")
+
 	return http.ListenAndServe(":"+s.port, nil)
+}
+
+// routeProjectsSubpath routes requests under /api/v1/projects/
+func (s *Server) routeProjectsSubpath(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/projects/")
+	parts := strings.Split(path, "/")
+
+	// /api/v1/projects/{projectId}
+	if len(parts) == 1 && parts[0] != "" {
+		s.handleProject(w, r)
+		return
+	}
+
+	// /api/v1/projects/{projectId}/pipelines
+	if len(parts) == 2 && parts[1] == "pipelines" {
+		s.handlePipelines(w, r)
+		return
+	}
+
+	// /api/v1/projects/{projectId}/pipelines/{pipelineId}
+	if len(parts) == 3 && parts[1] == "pipelines" {
+		s.handlePipeline(w, r)
+		return
+	}
+
+	// /api/v1/projects/{projectId}/pipelines/{pipelineId}/jobs
+	if len(parts) == 4 && parts[1] == "pipelines" && parts[3] == "jobs" {
+		s.handleJobs(w, r)
+		return
+	}
+
+	// /api/v1/projects/{projectId}/pipelines/{pipelineId}/jobs/{jobId}
+	if len(parts) == 5 && parts[1] == "pipelines" && parts[3] == "jobs" {
+		s.handleJob(w, r)
+		return
+	}
+
+	// /api/v1/projects/{projectId}/pipelines/{pipelineId}/jobs/{jobId}/logs
+	if len(parts) == 6 && parts[1] == "pipelines" && parts[3] == "jobs" && parts[5] == "logs" {
+		s.handleLogs(w, r)
+		return
+	}
+
+	respondError(w, http.StatusNotFound, "Not found")
 }
 
 // handleHealth is a simple health check endpoint
@@ -148,7 +214,7 @@ func (s *Server) runPipeline(pushEvent PushEvent, branch, commitHash string) {
 
 	// Clone the repository
 	log.Printf("Cloning repository to %s", workspaceDir)
-	if err := git.Clone(repoURL, branch, workspaceDir, accessToken); err != nil {
+	if err := git.Clone(repoURL, branch, workspaceDir, accessToken, commitHash); err != nil {
 		log.Printf("Failed to clone repository: %v", err)
 		if s.db != nil && pipelineID > 0 {
 			s.db.UpdatePipelineStatus(pipelineID, "failed")
@@ -372,4 +438,21 @@ func (s *Server) collectLogs(containerID string, jobID int) {
 			log.Printf("Failed to store remaining logs: %v", err)
 		}
 	}
+}
+
+// cloneRepo clones a repository (wrapper for git.Clone)
+// commitHash is optional - pass empty string to get the latest commit on the branch
+func (s *Server) cloneRepo(repoURL, branch, destPath, token, commitHash string) error {
+	return git.Clone(repoURL, branch, destPath, token, commitHash)
+}
+
+// cleanupWorkspace removes the workspace directory (wrapper for git.Cleanup)
+func (s *Server) cleanupWorkspace(path string) error {
+	return git.Cleanup(path)
+}
+
+// parseConfig parses a CI configuration file
+func (s *Server) parseConfig(configPath string) (*parser.PipelineConfig, error) {
+	p := parser.NewParser(configPath)
+	return p.Parse()
 }
