@@ -32,6 +32,27 @@ paths:
                     access_token:
                       type: string
                       example: "DFOEIlksvddmcklvpcdp$s"
+                    pipeline_filename:
+                      type: string
+                      example: ".gitlab-ci.yml"
+                    deployment_filename:
+                      type: string
+                      example: "docker-compose.yml"
+                    ssh_host:
+                      type: string
+                      example: "192.168.1.10"
+                    ssh_user:
+                      type: string
+                      example: "deploy"
+                    ssh_private_key:
+                      type: string
+                      example: "-----BEGIN OPENSSH PRIVATE KEY-----..."
+                    registry_user:
+                      type: string
+                      example: "user"
+                    registry_token:
+                      type: string
+                      example: "token"
                     created_at:
                       type: string
                       format: date-time
@@ -58,6 +79,27 @@ paths:
                 access_token:
                   type: string
                   example: "fepijrefgoiorgiejge^rop"
+                pipeline_filename:
+                  type: string
+                  example: ".gitlab-ci.yml"
+                deployment_filename:
+                  type: string
+                  example: "docker-compose.yml"
+                ssh_host:
+                  type: string
+                  example: "192.168.1.10"
+                ssh_user:
+                  type: string
+                  example: "deploy"
+                ssh_private_key:
+                  type: string
+                  example: "-----BEGIN OPENSSH PRIVATE KEY-----..."
+                registry_user:
+                  type: string
+                  example: "user"
+                registry_token:
+                  type: string
+                  example: "token"
       responses:
         '201':
           description: Project created
@@ -75,6 +117,30 @@ paths:
                   repo_url:
                     type: string
                     example: "https://github.com/user/repo.git"
+                  access_token:
+                    type: string
+                    example: "fepijrefgoiorgiejge^rop"
+                  pipeline_filename:
+                    type: string
+                    example: ".gitlab-ci.yml"
+                  deployment_filename:
+                    type: string
+                    example: "docker-compose.yml"
+                  ssh_host:
+                    type: string
+                    example: "192.168.1.10"
+                  ssh_user:
+                    type: string
+                    example: "deploy"
+                  ssh_private_key:
+                    type: string
+                    example: "-----BEGIN OPENSSH PRIVATE KEY-----..."
+                  registry_user:
+                    type: string
+                    example: "user"
+                  registry_token:
+                    type: string
+                    example: "token"
                   created_at:
                     type: string
                     format: date-time
@@ -107,6 +173,30 @@ paths:
                   repo_url:
                     type: string
                     example: "https://github.com/user/repo.git"
+                  access_token:
+                    type: string
+                    example: "fepijrefgoiorgiejge^rop"
+                  pipeline_filename:
+                    type: string
+                    example: ".gitlab-ci.yml"
+                  deployment_filename:
+                    type: string
+                    example: "docker-compose.yml"
+                  ssh_host:
+                    type: string
+                    example: "192.168.1.10"
+                  ssh_user:
+                    type: string
+                    example: "deploy"
+                  ssh_private_key:
+                    type: string
+                    example: "-----BEGIN OPENSSH PRIVATE KEY-----..."
+                  registry_user:
+                    type: string
+                    example: "user"
+                  registry_token:
+                    type: string
+                    example: "token"
                   created_at:
                     type: string
                     format: date-time
@@ -132,6 +222,30 @@ paths:
                 repo_url:
                   type: string
                   example: "https://github.com/user/repo.git"
+                access_token:
+                  type: string
+                  example: "fepijrefgoiorgiejge^rop"
+                pipeline_filename:
+                  type: string
+                  example: ".gitlab-ci.yml"
+                deployment_filename:
+                  type: string
+                  example: "docker-compose.yml"
+                ssh_host:
+                  type: string
+                  example: "192.168.1.10"
+                ssh_user:
+                  type: string
+                  example: "deploy"
+                ssh_private_key:
+                  type: string
+                  example: "-----BEGIN OPENSSH PRIVATE KEY-----..."
+                registry_user:
+                  type: string
+                  example: "user"
+                registry_token:
+                  type: string
+                  example: "token"
       responses:
         '200':
           description: Project updated
@@ -149,6 +263,30 @@ paths:
                   repo_url:
                     type: string
                     example: "https://github.com/user/repo.git"
+                  access_token:
+                    type: string
+                    example: "fepijrefgoiorgiejge^rop"
+                  pipeline_filename:
+                    type: string
+                    example: ".gitlab-ci.yml"
+                  deployment_filename:
+                    type: string
+                    example: "docker-compose.yml"
+                  ssh_host:
+                    type: string
+                    example: "192.168.1.10"
+                  ssh_user:
+                    type: string
+                    example: "deploy"
+                  ssh_private_key:
+                    type: string
+                    example: "-----BEGIN OPENSSH PRIVATE KEY-----..."
+                  registry_user:
+                    type: string
+                    example: "user"
+                  registry_token:
+                    type: string
+                    example: "token"
                   created_at:
                     type: string
                     format: date-time

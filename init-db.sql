@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS projects (
     ssh_private_key TEXT,
     registry_user TEXT,
     registry_token TEXT,
+    sonar_url TEXT,
+    sonar_token TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

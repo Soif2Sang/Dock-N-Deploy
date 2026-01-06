@@ -66,7 +66,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"My Project\",\n    \"repo_url\": \"https://github.com/user/repo.git\",\n    \"access_token\": \"ghp_xxxxxxxxxxxxxxxxxxxx\"\n}"
+							"raw": "{\n    \"name\": \"My Project\",\n    \"repo_url\": \"https://github.com/user/repo.git\",\n    \"access_token\": \"ghp_xxxxxxxxxxxxxxxxxxxx\",\n    \"pipeline_filename\": \".gitlab-ci.yml\",\n    \"deployment_filename\": \"docker-compose.yml\",\n    \"ssh_host\": \"192.168.1.10\",\n    \"ssh_user\": \"deploy\",\n    \"ssh_private_key\": \"-----BEGIN OPENSSH PRIVATE KEY-----...\",\n    \"registry_user\": \"user\",\n    \"registry_token\": \"token\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/projects",
@@ -112,7 +112,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"My Updated Project\",\n    \"repo_url\": \"https://github.com/user/updated-repo.git\"\n}"
+							"raw": "{\n    \"name\": \"My Updated Project\",\n    \"repo_url\": \"https://github.com/user/updated-repo.git\",\n    \"access_token\": \"ghp_xxxxxxxxxxxxxxxxxxxx\",\n    \"pipeline_filename\": \".gitlab-ci.yml\",\n    \"deployment_filename\": \"docker-compose.yml\",\n    \"ssh_host\": \"192.168.1.10\",\n    \"ssh_user\": \"deploy\",\n    \"ssh_private_key\": \"-----BEGIN OPENSSH PRIVATE KEY-----...\",\n    \"registry_user\": \"user\",\n    \"registry_token\": \"token\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/projects/{{projectId}}",

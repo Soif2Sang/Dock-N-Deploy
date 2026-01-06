@@ -69,6 +69,27 @@ func injectToken(repoURL, token string) string {
 	return repoURL
 }
 
+// GetRemoteHeadHash fetches the latest commit hash from the remote repository for a given branch
+func GetRemoteHeadHash(repoURL, branch, token string) (string, error) {
+	if token != "" {
+		repoURL = injectToken(repoURL, token)
+	}
+
+	cmd := exec.Command("git", "ls-remote", repoURL, branch)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get remote head hash: %w", err)
+	}
+
+	// Output format: <hash>\trefs/heads/<branch>\n
+	parts := strings.Fields(string(output))
+	if len(parts) == 0 {
+		return "", fmt.Errorf("branch %s not found in remote", branch)
+	}
+
+	return parts[0], nil
+}
+
 // GetLatestCommitHash returns the HEAD commit hash (optional but useful)
 func GetLatestCommitHash(repoPath string) (string, error) {
 	cmd := exec.Command("git", "rev-parse", "HEAD")

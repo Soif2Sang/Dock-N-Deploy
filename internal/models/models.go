@@ -14,6 +14,8 @@ type Project struct {
 	SSHPrivateKey      string    `json:"ssh_private_key"`
 	RegistryUser       string    `json:"registry_user"`
 	RegistryToken   string    `json:"registry_token"`
+	SonarURL        string    `json:"sonar_url"`
+	SonarToken      string    `json:"sonar_token"`
 	CreatedAt          time.Time `json:"created_at"`
 }
 
@@ -28,6 +30,8 @@ type NewProject struct {
 	SSHPrivateKey      string `json:"ssh_private_key"`
 	RegistryUser       string `json:"registry_user"`
 	RegistryToken   string `json:"registry_token"`
+	SonarURL        string `json:"sonar_url"`
+	SonarToken      string `json:"sonar_token"`
 }
 
 type Pipeline struct {
@@ -88,6 +92,8 @@ type PipelineRunParams struct {
 	SSHPrivateKey      string
 	RegistryUser       string
 	RegistryToken   string
+	SonarURL        string
+	SonarToken      string
 	ProjectID          int
 	PipelineID         int
 }

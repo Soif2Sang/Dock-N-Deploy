@@ -70,7 +70,7 @@ func (s *Server) runPipelineLogic(params models.PipelineRunParams) {
 	log.Printf("Config loaded with %d stages", len(config.Stages))
 
 	// Execute the pipeline jobs
-	pipelineSuccess := s.executePipeline(config, workspaceDir, params.PipelineID)
+	pipelineSuccess := s.executePipeline(config, workspaceDir, params.PipelineID, project)
 
 	// Deploy if successful
 	if pipelineSuccess {
@@ -154,9 +154,8 @@ func (s *Server) runPipelineLogic(params models.PipelineRunParams) {
 
 										// Deploy command
 										// Add /usr/local/bin to PATH for non-interactive shells where docker might not be found
-										cmd := fmt.Sprintf("export PATH=$PATH:/usr/local/bin:/usr/bin && cd %s && docker compose -f %s -f %s pull && docker compose -f %s -f %s up -d",
-											remoteDir, params.DeploymentFilename, overrideFilename,
-											params.DeploymentFilename, overrideFilename)
+										cmd := fmt.Sprintf("export PATH=$PATH:/usr/local/bin:/usr/bin && cd %s && export CF=%s && export OF=%s && docker compose -f $CF -f $OF pull && docker compose -f $CF -f $OF up -d --wait && sleep 5 && echo 'Checking container statuses...' && docker compose -f $CF -f $OF ps -a && if docker compose -f $CF -f $OF ps -a -q | xargs docker inspect -f '{{.Name}}: {{.State.ExitCode}}' | grep -vE ': 0$'; then echo 'Deployment failed: One or more containers exited with error' && docker compose -f $CF -f $OF logs && exit 1; fi",
+											remoteDir, params.DeploymentFilename, overrideFilename)
 
 										remoteLogs, remoteErr := client.RunCommand(cmd)
 										logs += "=== REMOTE DEPLOY LOGS ===\n" + remoteLogs + "\n"
@@ -214,8 +213,19 @@ func (s *Server) runPipelineLogic(params models.PipelineRunParams) {
 }
 
 // executePipeline runs all jobs in the pipeline
-func (s *Server) executePipeline(config *pipeline.PipelineConfig, workspaceDir string, pipelineID int) bool {
+func (s *Server) executePipeline(config *pipeline.PipelineConfig, workspaceDir string, pipelineID int, project *models.Project) bool {
 	pipelineSuccess := true
+
+	// Prepare environment variables
+	var envVars []string
+	if project != nil {
+		if project.SonarURL != "" {
+			envVars = append(envVars, fmt.Sprintf("SONAR_HOST_URL=%s", project.SonarURL))
+		}
+		if project.SonarToken != "" {
+			envVars = append(envVars, fmt.Sprintf("SONAR_TOKEN=%s", project.SonarToken))
+		}
+	}
 
 	for _, stageName := range config.Stages {
 		log.Printf("Running stage: %s", stageName)
@@ -252,7 +262,7 @@ func (s *Server) executePipeline(config *pipeline.PipelineConfig, workspaceDir s
 			}
 
 			// Run the job with workspace mounted
-			containerID, err := s.docker.RunJobWithVolume(job.Image, job.Script, workspaceDir)
+			containerID, err := s.docker.RunJobWithVolume(job.Image, job.Script, workspaceDir, envVars)
 			if err != nil {
 				log.Printf("Failed to start job %s: %v", jobName, err)
 				if s.db != nil && jobID > 0 {

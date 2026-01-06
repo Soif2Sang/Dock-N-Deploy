@@ -129,7 +129,7 @@ func (e *DockerExecutor) ComposePush(workDir, composeFile, overrideFile string) 
 }
 
 // RunJobWithVolume runs a job with a workspace directory mounted into the container
-func (e *DockerExecutor) RunJobWithVolume(imageName string, commands []string, workspacePath string) (string, error) {
+func (e *DockerExecutor) RunJobWithVolume(imageName string, commands []string, workspacePath string, envVars []string) (string, error) {
 	// On concatène les commandes avec " && " pour qu'elles s'exécutent séquentiellement
 	cmdString := strings.Join(commands, " && ")
 
@@ -138,6 +138,7 @@ func (e *DockerExecutor) RunJobWithVolume(imageName string, commands []string, w
 		Image:      imageName,
 		Cmd:        []string{"sh", "-c", cmdString},
 		WorkingDir: "/workspace",
+		Env:        envVars,
 	}
 
 	// Configuration de l'hôte avec le volume monté

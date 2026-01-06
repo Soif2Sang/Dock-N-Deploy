@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Soif2Sang/imt-cloud-CI-CD-backend.git/internal/git"
 	"github.com/Soif2Sang/imt-cloud-CI-CD-backend.git/internal/models"
 )
 
@@ -276,8 +277,16 @@ func (s *Server) triggerPipeline(w http.ResponseWriter, r *http.Request, project
 		reqBody.Branch = "main"
 	}
 
+	// Get latest commit hash
+	commitHash, err := git.GetRemoteHeadHash(project.RepoURL, reqBody.Branch, project.AccessToken)
+	if err != nil {
+		log.Printf("Failed to get latest commit hash: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to get latest commit hash")
+		return
+	}
+
 	// Create pipeline record
-	pipeline, err := s.db.CreatePipeline(projectID, reqBody.Branch, "manual-trigger")
+	pipeline, err := s.db.CreatePipeline(projectID, reqBody.Branch, commitHash)
 	if err != nil {
 		log.Printf("Failed to create pipeline: %v", err)
 		respondError(w, http.StatusInternalServerError, "Failed to create pipeline")
