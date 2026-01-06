@@ -455,3 +455,86 @@ paths:
                       type: string
                       format: date-time
                       example: "2023-10-27T10:05:35Z"
+
+  /projects/{projectId}/pipelines/{pipelineId}/deployment:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: pipelineId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      summary: Get deployment details
+      tags: [Deployments]
+      responses:
+        '200':
+          description: Deployment details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 201
+                  pipeline_id:
+                    type: integer
+                    example: 101
+                  status:
+                    type: string
+                    enum: [deploying, success, failed, rolled_back]
+                    example: "success"
+                  started_at:
+                    type: string
+                    format: date-time
+                    example: "2023-10-27T10:08:00Z"
+                  finished_at:
+                    type: string
+                    format: date-time
+                    example: "2023-10-27T10:09:00Z"
+        '404':
+          description: Deployment not found
+
+  /projects/{projectId}/pipelines/{pipelineId}/deployment/logs:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: pipelineId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      summary: Get logs for a deployment
+      tags: [Logs]
+      responses:
+        '200':
+          description: Deployment logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      example: 3001
+                    pipeline_id:
+                      type: integer
+                      example: 101
+                    content:
+                      type: string
+                      example: "Container started..."
+                    created_at:
+                      type: string
+                      format: date-time
+                      example: "2023-10-27T10:08:05Z"

@@ -256,6 +256,31 @@
 			"description": "Endpoints for managing jobs"
 		},
 		{
+			"name": "Deployments",
+			"item": [
+				{
+					"name": "Get deployment details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/projects/{{projectId}}/pipelines/{{pipelineId}}/deployment",
+							"host": ["{{baseUrl}}"],
+							"path": ["projects", "{{projectId}}", "pipelines", "{{pipelineId}}", "deployment"]
+						},
+						"description": "Get details of a specific deployment"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for managing deployments"
+		},
+		{
 			"name": "Logs",
 			"item": [
 				{
@@ -274,6 +299,25 @@
 							"path": ["projects", "{{projectId}}", "pipelines", "{{pipelineId}}", "jobs", "{{jobId}}", "logs"]
 						},
 						"description": "Get all logs for a specific job"
+					},
+					"response": []
+				},
+				{
+					"name": "Get logs for a deployment",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/projects/{{projectId}}/pipelines/{{pipelineId}}/deployment/logs",
+							"host": ["{{baseUrl}}"],
+							"path": ["projects", "{{projectId}}", "pipelines", "{{pipelineId}}", "deployment", "logs"]
+						},
+						"description": "Get all logs for a specific deployment"
 					},
 					"response": []
 				}

@@ -43,8 +43,7 @@ func (e *DockerExecutor) PullImage(imageName string) error {
 }
 
 // RunJobWithVolume runs a job with a workspace directory mounted into the container
-// It also mounts the Docker socket to allow Docker-out-of-Docker (DooD)
-func (e *DockerExecutor) RunJobWithVolume(imageName string, commands []string, workspacePath string, envVars []string) (string, error) {
+func (e *DockerExecutor) RunJobWithVolume(imageName string, commands []string, workspacePath string) (string, error) {
 	// On concatène les commandes avec " && " pour qu'elles s'exécutent séquentiellement
 	cmdString := strings.Join(commands, " && ")
 
@@ -52,8 +51,7 @@ func (e *DockerExecutor) RunJobWithVolume(imageName string, commands []string, w
 	containerConfig := &container.Config{
 		Image:      imageName,
 		Cmd:        []string{"sh", "-c", cmdString},
-		WorkingDir: "/workspace", // Le répertoire de travail dans le conteneur
-		Env:        envVars,      // Injection des variables d'environnement
+		WorkingDir: "/workspace",
 	}
 
 	// Configuration de l'hôte avec le volume monté
@@ -63,13 +61,6 @@ func (e *DockerExecutor) RunJobWithVolume(imageName string, commands []string, w
 				Type:   mount.TypeBind,
 				Source: workspacePath,        // Chemin sur l'hôte
 				Target: "/workspace",         // Chemin dans le conteneur
-			},
-			// Montage du socket Docker pour permettre le Docker-out-of-Docker (DooD)
-			// Cela permet au conteneur de lancer des commandes docker (build, run, push)
-			{
-				Type:   mount.TypeBind,
-				Source: "/var/run/docker.sock",
-				Target: "/var/run/docker.sock",
 			},
 		},
 	}
@@ -111,7 +102,8 @@ func (e *DockerExecutor) RemoveContainer(containerID string) error {
 }
 
 // DeployCompose deploys using docker-compose with rollback capability
-func (e *DockerExecutor) DeployCompose(workDir, composeFile, projectName, serviceName string) error {
+func (e *DockerExecutor) DeployCompose(workDir, composeFile, projectName string) (string, error) {
+	var logs strings.Builder
 	ctx := e.ctx
 
 	baseArgs := []string{"compose"}
@@ -153,16 +145,20 @@ func (e *DockerExecutor) DeployCompose(workDir, composeFile, projectName, servic
 	// Helper for rollback
 	performRollback := func() {
 		if len(backupImages) == 0 {
+			logs.WriteString("No backup available for rollback.\n")
 			fmt.Println("No backup available for rollback.")
 			return
 		}
+		logs.WriteString("Performing rollback...\n")
 		fmt.Println("Performing rollback...")
 
 		// Restore tags
 		for name, id := range backupImages {
 			// Force tag the old ID back to the original name
 			if err := e.cli.ImageTag(ctx, id, name); err != nil {
-				fmt.Printf("Error restoring tag %s: %v\n", name, err)
+				msg := fmt.Sprintf("Error restoring tag %s: %v\n", name, err)
+				logs.WriteString(msg)
+				fmt.Printf(msg)
 			}
 		}
 
@@ -171,31 +167,31 @@ func (e *DockerExecutor) DeployCompose(workDir, composeFile, projectName, servic
 		cmdRollback := exec.Command("docker", argsRollback...)
 		cmdRollback.Dir = workDir
 		if out, err := cmdRollback.CombinedOutput(); err != nil {
-			fmt.Printf("Rollback failed: %s\n", string(out))
+			msg := fmt.Sprintf("Rollback failed: %s\n", string(out))
+			logs.WriteString(msg)
+			fmt.Printf(msg)
 		} else {
+			logs.WriteString("Rollback successful.\n")
 			fmt.Println("Rollback successful.")
 		}
 	}
 
 	// 2. Pull
 	argsPull := append(baseArgs, "pull")
-	if serviceName != "" {
-		argsPull = append(argsPull, serviceName)
-	}
 	cmdPull := exec.Command("docker", argsPull...)
 	cmdPull.Dir = workDir
-	if output, err := cmdPull.CombinedOutput(); err != nil {
-		return fmt.Errorf("docker compose pull failed: %s: %w", string(output), err)
+	output, err = cmdPull.CombinedOutput()
+	logs.Write(output)
+	if err != nil {
+		return logs.String(), fmt.Errorf("docker compose pull failed: %s: %w", string(output), err)
 	}
 
 	// 3. Up
 	argsUp := append(baseArgs, "up", "-d", "--build")
-	if serviceName != "" {
-		argsUp = append(argsUp, serviceName)
-	}
 	cmdUp := exec.Command("docker", argsUp...)
 	cmdUp.Dir = workDir
 	output, err = cmdUp.CombinedOutput()
+	logs.Write(output)
 	if err != nil {
 		// Attempt to resolve container name conflicts automatically
 		outStr := string(output)
@@ -214,6 +210,7 @@ func (e *DockerExecutor) DeployCompose(workDir, composeFile, projectName, servic
 					cmdUpRetry := exec.Command("docker", argsUp...)
 					cmdUpRetry.Dir = workDir
 					outputRetry, errRetry := cmdUpRetry.CombinedOutput()
+					logs.Write(outputRetry)
 					if errRetry == nil {
 						err = nil // Retry succeeded
 					} else {
@@ -226,7 +223,7 @@ func (e *DockerExecutor) DeployCompose(workDir, composeFile, projectName, servic
 
 		if err != nil {
 			performRollback()
-			return fmt.Errorf("docker compose up failed: %s: %w", string(output), err)
+			return logs.String(), fmt.Errorf("docker compose up failed: %s: %w", string(output), err)
 		}
 	}
 
@@ -239,7 +236,7 @@ func (e *DockerExecutor) DeployCompose(workDir, composeFile, projectName, servic
 	outHealth, err := cmdHealth.Output()
 	if err != nil {
 		performRollback()
-		return fmt.Errorf("health check failed (ps error): %v", err)
+		return logs.String(), fmt.Errorf("health check failed (ps error): %v", err)
 	}
 
 	cids := strings.Split(strings.TrimSpace(string(outHealth)), "\n")
@@ -253,14 +250,16 @@ func (e *DockerExecutor) DeployCompose(workDir, composeFile, projectName, servic
 		}
 		if !info.State.Running || info.State.Restarting {
 			allRunning = false
-			fmt.Printf("Container %s is not running (State: %s)\n", info.Name, info.State.Status)
+			msg := fmt.Sprintf("Container %s is not running (State: %s)\n", info.Name, info.State.Status)
+			logs.WriteString(msg)
+			fmt.Printf(msg)
 			break
 		}
 	}
 
 	if !allRunning {
 		performRollback()
-		return fmt.Errorf("deployment failed: one or more services are unhealthy")
+		return logs.String(), fmt.Errorf("deployment failed: one or more services are unhealthy")
 	}
 
 	// 5. Cleanup Backups
@@ -268,5 +267,5 @@ func (e *DockerExecutor) DeployCompose(workDir, composeFile, projectName, servic
 		e.cli.ImageRemove(ctx, name+"-rollback", image.RemoveOptions{})
 	}
 
-	return nil
+	return logs.String(), nil
 }

@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -287,7 +285,7 @@ func (s *Server) triggerPipeline(w http.ResponseWriter, r *http.Request, project
 	}
 
 	// Trigger pipeline execution asynchronously
-	go s.runPipelineForProject(project, pipeline, reqBody.Branch)
+	go s.runPipelineFromManualTrigger(project, pipeline, reqBody.Branch)
 
 	respondJSON(w, http.StatusCreated, pipeline)
 }
@@ -511,73 +509,83 @@ func (s *Server) getJobLogs(w http.ResponseWriter, r *http.Request, projectID, p
 	respondJSON(w, http.StatusOK, logs)
 }
 
-// === Pipeline Execution for Manual Trigger ===
+// === Deployment Handlers ===
 
-// runPipelineForProject runs a pipeline for a project (used by manual trigger)
-func (s *Server) runPipelineForProject(project *models.Project, pipeline *models.Pipeline, branch string) {
-	log.Printf("Starting manual pipeline %d for project %s", pipeline.ID, project.Name)
-
-	// Update status to running
-	s.db.UpdatePipelineStatus(pipeline.ID, "running")
-
-	// Create workspace
-	workspaceDir := "/tmp/cicd-workspaces/" + project.Name + "-" + strconv.Itoa(pipeline.ID)
-
-	// Clone repository
-	if err := s.cloneAndRunPipeline(project, pipeline, branch, workspaceDir); err != nil {
-		log.Printf("Pipeline %d failed: %v", pipeline.ID, err)
-		s.db.UpdatePipelineStatus(pipeline.ID, "failed")
+// handleDeployment retrieves the deployment for a pipeline
+func (s *Server) handleDeployment(w http.ResponseWriter, r *http.Request) {
+	// Extract IDs from path
+	projectID, err := parseIDFromPath(r.URL.Path, 3)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid project ID")
 		return
 	}
+
+	pipelineID, err := parseIDFromPath(r.URL.Path, 5)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid pipeline ID")
+		return
+	}
+
+	if s.db == nil {
+		respondError(w, http.StatusServiceUnavailable, "Database not available")
+		return
+	}
+
+	// Verify project exists
+	_, err = s.db.GetProject(projectID)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "Project not found")
+		return
+	}
+
+	deployment, err := s.db.GetDeploymentByPipeline(pipelineID)
+	if err != nil {
+		log.Printf("Failed to get deployment: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to get deployment")
+		return
+	}
+
+	if deployment == nil {
+		respondError(w, http.StatusNotFound, "Deployment not found")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, deployment)
 }
 
-// cloneAndRunPipeline clones the repo and runs the pipeline
-func (s *Server) cloneAndRunPipeline(project *models.Project, pipeline *models.Pipeline, branch, workspaceDir string) error {
-	// Import git package functions
-	// Clone repository at specific commit if available
-	if err := s.cloneRepo(project.RepoURL, branch, workspaceDir, project.AccessToken, pipeline.CommitHash); err != nil {
-		return err
-	}
-	defer s.cleanupWorkspace(workspaceDir)
-
-	pipelineFilename := project.PipelineFilename
-	if pipelineFilename == "" {
-		pipelineFilename = ".gitlab-ci.yml"
-	}
-	deploymentFilename := project.DeploymentFilename
-	if deploymentFilename == "" {
-		deploymentFilename = "docker-compose.yml"
-	}
-
-	// Find CI config
-	configPath := filepath.Join(workspaceDir, pipelineFilename)
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		log.Printf("CI config file not found at %s", configPath)
-		return nil
-	}
-
-	// Parse and execute
-	config, err := s.parseConfig(configPath)
+// handleDeploymentLogs retrieves logs for a deployment
+func (s *Server) handleDeploymentLogs(w http.ResponseWriter, r *http.Request) {
+	// Extract IDs from path
+	projectID, err := parseIDFromPath(r.URL.Path, 3)
 	if err != nil {
-		return err
+		respondError(w, http.StatusBadRequest, "Invalid project ID")
+		return
 	}
 
-	success := s.executePipeline(config, workspaceDir, pipeline.ID)
-
-	// Deploy if successful
-	if success {
-		log.Printf("Pipeline successful. Starting deployment using %s...", deploymentFilename)
-		sanitizedProjectName := sanitizeProjectName(project.Name)
-		if err := s.docker.DeployCompose(workspaceDir, deploymentFilename, sanitizedProjectName, ""); err != nil {
-			log.Printf("Deployment failed: %v", err)
-			s.db.UpdatePipelineStatus(pipeline.ID, "failed")
-		} else {
-			log.Printf("Deployment successful!")
-			s.db.UpdatePipelineStatus(pipeline.ID, "success")
-		}
-	} else {
-		s.db.UpdatePipelineStatus(pipeline.ID, "failed")
+	pipelineID, err := parseIDFromPath(r.URL.Path, 5)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid pipeline ID")
+		return
 	}
 
-	return nil
+	if s.db == nil {
+		respondError(w, http.StatusServiceUnavailable, "Database not available")
+		return
+	}
+
+	// Verify project exists
+	_, err = s.db.GetProject(projectID)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "Project not found")
+		return
+	}
+
+	logs, err := s.db.GetDeploymentLogs(pipelineID)
+	if err != nil {
+		log.Printf("Failed to get deployment logs: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to get deployment logs")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, logs)
 }

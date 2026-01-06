@@ -37,8 +37,16 @@ CREATE TABLE IF NOT EXISTS jobs (
     FOREIGN KEY(pipeline_id) REFERENCES pipelines(id) ON DELETE CASCADE
 );
 
+CREATE TABLE deployments (
+    id SERIAL PRIMARY KEY,
+    pipeline_id INTEGER NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL,       -- 'deploying', 'success', 'failed', 'rolled_back'
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    finished_at TIMESTAMP
+);
+
 -- Table des logs (Stockage unitaire ligne par ligne pour le streaming)
-CREATE TABLE IF NOT EXISTS logs (
+CREATE TABLE IF NOT EXISTS job_logs (
     id SERIAL PRIMARY KEY,
     job_id INTEGER NOT NULL,
     content TEXT,                  -- Le contenu de la ligne de log
@@ -46,10 +54,20 @@ CREATE TABLE IF NOT EXISTS logs (
     FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS deployment_logs (
+    id SERIAL PRIMARY KEY,
+    pipeline_id INTEGER NOT NULL,
+    content TEXT,                  -- Le contenu de la ligne de log
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Pour trier les logs dans l'ordre
+    FOREIGN KEY(pipeline_id) REFERENCES pipelines(id) ON DELETE CASCADE
+);
+
 -- Index pour optimiser les requêtes fréquentes
 CREATE INDEX IF NOT EXISTS idx_pipelines_project_id ON pipelines(project_id);
 CREATE INDEX IF NOT EXISTS idx_pipelines_status ON pipelines(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_pipeline_id ON jobs(pipeline_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
-CREATE INDEX IF NOT EXISTS idx_logs_job_id ON logs(job_id); -- Crucial pour récupérer les logs rapidement
-CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_logs_job_id ON job_logs(job_id);
+CREATE INDEX IF NOT EXISTS idx_logs_created_at ON job_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_deployments_pipeline_id ON deployments(pipeline_id);
+CREATE INDEX IF NOT EXISTS idx_deployment_logs_pipeline_id ON deployment_logs(pipeline_id);
