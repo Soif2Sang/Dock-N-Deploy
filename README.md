@@ -1,13 +1,17 @@
-# IMT Cloud CI/CD Backend
+# Self-Hosted CI/CD Platform Dock'n'Deploy
 
-A lightweight, robust CI/CD engine built in Go. It supports custom pipelines, Docker-based execution, automated deployments via SSH, and automatic rollbacks.
+A personal, self-hosted pipeline runner and deployment platform built from scratch.
+
+> **Note:** This project marks my first deep dive into **Go**. While I collaborated with an LLM for code generation, the **architecture, system design, and engineering logic** are entirely my own. I used the AI as a tool to accelerate implementation while I focused on the higher-level problem solving and orchestration.
+
+This project aims to provide a lightweight, robust alternative to heavy CI/CD systems, offering custom pipelines, isolated execution, and automated deployments.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
 - **Docker** & **Docker Compose**
-- **Go** 1.21+
+- **Go** 1.25+
 - **Node.js** & **npm** (for the frontend)
 
 ### Installation & Startup
