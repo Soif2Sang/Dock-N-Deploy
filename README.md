@@ -2,7 +2,7 @@
 
 A personal, self-hosted pipeline runner and deployment platform built from scratch.
 
-> **Note:** This project marks my first deep dive into **Go**. While I collaborated with an LLM for code generation, the **architecture, system design, and engineering logic** are entirely my own. I used the AI as a tool to accelerate implementation while I focused on the higher-level problem solving and orchestration.
+> **Note:** Note: This project marks my first deep dive into **Go**. While I utilized an LLM to assist with syntax and implementation speed, **the architecture, system design, and engineering logic** are entirely my own. To ensure a deep understanding of the fundamentals, I intentionally **avoided high-level orchestration tools**, building the deployment logic from the ground up to master the underlying mechanics.
 
 This project aims to provide a lightweight, robust alternative to heavy CI/CD systems, offering custom pipelines, isolated execution, and automated deployments.
 
