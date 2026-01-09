@@ -1,0 +1,45 @@
+graph LR
+    subgraph Local ["💻 MACHINE LOCALE"]
+        direction TB
+        J(🧑‍💻 Développeur)
+        B["<b>Backend CI/CD</b><br/>(localhost:8080)"]
+        D[(Docker Engine Local)]
+        C(Ngrok Tunnel)
+    end
+
+    subgraph Cloud ["☁️ SERVICES CLOUD"]
+        E{{GitHub Repository}}
+        DH[(Docker Hub Registry)]
+    end
+
+    subgraph Remote ["☁️ SERVEUR DISTANT"]
+        direction TB
+        F["Machine Distante<br/>(SSH)"]
+        G[(Docker Engine Distant)]
+        H[/App Déployée/]
+        I(Ngrok Public)
+    end
+
+    %% --- FLUX DE TRAVAIL ---
+    
+    J -->|1. Push Code| E
+    E -->|2. Webhook| C
+    C -->|3. Forward| B
+
+    %% CI/CD avec Docker Hub
+    B -->|4. Clone| E
+    B -- "5. EXECUTE PIPELINE<br/>(Build & Test)" --- D
+    D -->|6. Push Images| DH
+
+    %% Déploiement via SSH
+    B -.->|7. SSH Command| F
+    F -->|8. Pull Images| DH
+    F -->|9. Docker-compose up| G
+    G -->|10. Run| H
+    H -->|11. Serve| I
+    I -.->|12. View| J
+
+    %% Styles
+    style B fill:#f9f,stroke:#333
+    style DH fill:#0db7ed,stroke:#fff,color:#fff
+    style E fill:#fff5ad,stroke:#fbc02d
