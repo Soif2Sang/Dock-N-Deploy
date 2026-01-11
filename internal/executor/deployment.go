@@ -229,7 +229,7 @@ type DeploymentLogger struct {
 // 
 func (e *DeploymentExecutor) newDeploymentLogger(deploymentID int) *DeploymentLogger {
 	if e.db == nil {
-		panic("DeploymentExecutor requires a non-nil db to create DeploymentLogger"
+		panic("DeploymentExecutor requires a non-nil db to create DeploymentLogger")
 	}
 
 	return &DeploymentLogger{
