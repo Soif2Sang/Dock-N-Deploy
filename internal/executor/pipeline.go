@@ -21,6 +21,10 @@ type PipelineExecutor struct {
 }
 
 func NewPipelineExecutor(db *database.DB, docker *docker.DockerExecutor) *PipelineExecutor {
+	if docker == nil || db == nil {
+		panic("PipelineExecutor requires non-nil db and docker dependencies")
+	}
+
 	return &PipelineExecutor{
 		db:     db,
 		docker: docker,
@@ -30,21 +34,17 @@ func NewPipelineExecutor(db *database.DB, docker *docker.DockerExecutor) *Pipeli
 // Execute runs all jobs in the pipeline
 func (e *PipelineExecutor) Execute(config *pipeline.PipelineConfig, workspaceDir string, pipelineID int, project *models.Project) bool {
 	pipelineSuccess := true
-
-	// Prepare environment variables
 	var envVars []string
-	if project != nil {
-		// Inject Custom Variables (Secrets/Env Vars)
-		if e.db != nil {
-			variables, err := e.db.GetVariablesByProject(project.ID)
-			if err != nil {
-				logger.Error("Failed to fetch project variables: " + err.Error())
-			} else {
-				for _, v := range variables {
-					envVars = append(envVars, fmt.Sprintf("%s=%s", v.Key, v.Value))
-				}
-			}
+
+	variables, err := e.db.GetVariablesByProject(project.ID)
+
+	if err != nil {
+		logger.Error("Failed to fetch project variables: " + err.Error())
+	} else {
+		for _, v := range variables {
+			envVars = append(envVars, fmt.Sprintf("%s=%s", v.Key, v.Value))
 		}
+		logger.Info(fmt.Sprintf("Loaded %d project variables", len(variables)))
 	}
 
 	for _, stageName := range config.Stages {
@@ -59,26 +59,26 @@ func (e *PipelineExecutor) Execute(config *pipeline.PipelineConfig, workspaceDir
 
 			// Update job status in database
 			var jobID int
-			if e.db != nil && pipelineID > 0 {
-				dbJob, err := e.db.GetJobByName(pipelineID, jobName)
-				if err != nil {
-					logger.Warn(fmt.Sprintf("Job not found, creating: %v", err))
-					dbJob, err = e.db.CreateJob(pipelineID, jobName, job.Stage, job.Image)
-				}
+			dbJob, err := e.db.GetJobByName(pipelineID, jobName)
 
-				if err == nil && dbJob != nil {
-					jobID = dbJob.ID
-					e.db.UpdateJobStatus(jobID, "running", nil)
-				} else {
-					logger.Error(fmt.Sprintf("Failed to get/create job record: %v", err))
-				}
+			if err != nil {
+				logger.Warn(fmt.Sprintf("Job not found, creating: %v", err))
+				dbJob, err = e.db.CreateJob(pipelineID, jobName, job.Stage, job.Image)
+			}
+
+			if err == nil && dbJob != nil {
+				jobID = dbJob.ID
+				e.db.UpdateJobStatus(jobID, "running", nil)
+			} else {
+				logger.Error(fmt.Sprintf("Failed to get/create job record: %v", err))
+				return false
 			}
 
 			// Pull the image
 			logger.Info(fmt.Sprintf("Pulling image: %s", job.Image))
 			if err := e.docker.PullImage(job.Image); err != nil {
 				logger.Error(fmt.Sprintf("Failed to pull image %s: %v", job.Image, err))
-				if e.db != nil && jobID > 0 {
+				if jobID > 0 {
 					exitCode := 1
 					e.db.UpdateJobStatus(jobID, "failed", &exitCode)
 				}
@@ -87,7 +87,7 @@ func (e *PipelineExecutor) Execute(config *pipeline.PipelineConfig, workspaceDir
 			}
 
 			// Run the job with workspace mounted
-			containerID, err := e.docker.RunJobWithVolume(job.Image, job.Script, workspaceDir, envVars)
+			containerID, err := e.docker.RunJob(job.Image, job.Script, workspaceDir, envVars)
 			if err != nil {
 				logger.Error(fmt.Sprintf("Failed to start job %s: %v", jobName, err))
 				if e.db != nil && jobID > 0 {
@@ -109,13 +109,11 @@ func (e *PipelineExecutor) Execute(config *pipeline.PipelineConfig, workspaceDir
 
 			// Update job status
 			exitCode := int(statusCode)
-			if e.db != nil && jobID > 0 {
-				status := "success"
-				if statusCode != 0 {
-					status = "failed"
-				}
-				e.db.UpdateJobStatus(jobID, status, &exitCode)
+			status := "success"
+			if statusCode != 0 {
+				status = "failed"
 			}
+			e.db.UpdateJobStatus(jobID, status, &exitCode)
 
 			if statusCode != 0 {
 				logger.Error(fmt.Sprintf("Job %s failed with exit code %d", jobName, statusCode))
@@ -172,7 +170,7 @@ func (e *PipelineExecutor) collectLogs(containerID string, jobID int) {
 		logBatch = append(logBatch, cleanLine)
 
 		// Store in batches of 10
-		if len(logBatch) >= 10 && e.db != nil && jobID > 0 {
+		if len(logBatch) >= 10 {
 			if err := e.db.CreateLogBatch(jobID, logBatch); err != nil {
 				logger.Error(fmt.Sprintf("Failed to store logs: %v", err))
 			}
@@ -181,7 +179,7 @@ func (e *PipelineExecutor) collectLogs(containerID string, jobID int) {
 	}
 
 	// Store remaining logs
-	if len(logBatch) > 0 && e.db != nil && jobID > 0 {
+	if len(logBatch) > 0 {
 		if err := e.db.CreateLogBatch(jobID, logBatch); err != nil {
 			logger.Error(fmt.Sprintf("Failed to store remaining logs: %v", err))
 		}

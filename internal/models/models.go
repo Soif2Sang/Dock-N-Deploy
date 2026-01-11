@@ -99,7 +99,7 @@ type Deployment struct {
 
 type DeploymentLog struct {
 	ID         int       `json:"id"`
-	PipelineID int       `json:"pipeline_id"`
+	DeploymentID int     `json:"deployment_id"`
 	Content    string    `json:"content"`
 	CreatedAt  time.Time `json:"created_at"`
 }

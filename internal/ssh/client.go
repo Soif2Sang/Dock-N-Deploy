@@ -15,7 +15,7 @@ type Client struct {
 }
 
 // NewClient creates a new SSH connection
-func NewClient(host, user, privateKey string) (*Client, error) {
+func NewClient(host string, user string, privateKey string) (*Client, error) {
 	signer, err := ssh.ParsePrivateKey([]byte(privateKey))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse private key: %w", err)

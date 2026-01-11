@@ -620,9 +620,25 @@ func (s *Server) triggerPipeline(w http.ResponseWriter, r *http.Request, project
 		return
 	}
 
-	// Trigger pipeline execution asynchronously
-	go s.runPipelineFromManualTrigger(project, pipeline, reqBody.Branch)
+	logger.Info(fmt.Sprintf("Starting manual pipeline %d for project %s", pipeline.ID, project.Name))
 
+	// Update status to running
+	s.db.UpdatePipelineStatus(pipeline.ID, "running")
+
+	params := models.PipelineRunParams{
+		RepoURL:            project.RepoURL,
+		RepoName:           project.Name,
+		Branch:             reqBody.Branch,
+		CommitHash:         pipeline.CommitHash,
+		AccessToken:        project.AccessToken,
+		PipelineFilename:   project.PipelineFilename,
+		DeploymentFilename: project.DeploymentFilename,
+		ProjectID:          project.ID,
+		PipelineID:         pipeline.ID,
+	}
+
+	go s.runPipelineLogic(params)
+	
 	respondJSON(w, http.StatusCreated, pipeline)
 }
 
@@ -916,7 +932,19 @@ func (s *Server) handleDeploymentLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logs, err := s.db.GetDeploymentLogs(pipelineID)
+	// Find deployment for pipeline and fetch logs by deployment ID
+	deployment, err := s.db.GetDeploymentByPipeline(pipelineID)
+	if err != nil {
+		log.Printf("Failed to get deployment: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to get deployment")
+		return
+	}
+	if deployment == nil {
+		respondError(w, http.StatusNotFound, "Deployment not found")
+		return
+	}
+
+	logs, err := s.db.GetDeploymentLogs(deployment.ID)
 	if err != nil {
 		log.Printf("Failed to get deployment logs: %v", err)
 		respondError(w, http.StatusInternalServerError, "Failed to get deployment logs")
@@ -974,12 +1002,43 @@ func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 	logger.Info("Received push event for %s on branch %s (commit: %s)",
 		pushEvent.Repository.FullName, branch, commitHash[:8])
 
-	// Run pipeline asynchronously
-	go s.runPipelineFromWebhook(pushEvent, branch, commitHash)
+	project, err := s.db.FindProjectByUrl(pushEvent.Repository.CloneURL)
+	if (err != nil || project == nil ) {
+		logger.Error(fmt.Sprintf("Project not found for repo %s. Ignoring webhook.", pushEvent.Repository.CloneURL))
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": fmt.Sprintf("Project not found for repo %s. Ignoring webhook.", pushEvent.Repository.CloneURL),
+		})
+		return
+	}
 
-	// Respond immediately
+	pipeline, err := s.db.CreatePipeline(project.ID, branch, commitHash)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to create pipeline record: %v", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	logger.Info(fmt.Sprintf("Pipeline created with ID: %d", pipeline.ID))
+	
+	s.db.UpdatePipelineStatus(pipeline.ID, "running")
+
+	params := models.PipelineRunParams{
+		RepoURL:            pushEvent.Repository.CloneURL,
+		RepoName:           pushEvent.Repository.Name,
+		Branch:             branch,
+		CommitHash:         commitHash,
+		AccessToken:        project.AccessToken,
+		PipelineFilename:   project.PipelineFilename,
+		DeploymentFilename: project.DeploymentFilename,
+		ProjectID:          project.ID,
+		PipelineID:         pipeline.ID,
+	}
+
+	go s.runPipelineLogic(params)
+
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "Pipeline triggered",
 		"branch":  branch,

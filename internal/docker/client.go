@@ -128,12 +128,10 @@ func (e *DockerExecutor) ComposePush(workDir, composeFile, overrideFile string) 
 	return string(output), err
 }
 
-// RunJobWithVolume runs a job with a workspace directory mounted into the container
-func (e *DockerExecutor) RunJobWithVolume(imageName string, commands []string, workspacePath string, envVars []string) (string, error) {
-	// On concatène les commandes avec " && " pour qu'elles s'exécutent séquentiellement
+// RunJob runs a job with a workspace directory mounted into the container
+func (e *DockerExecutor) RunJob(imageName string, commands []string, workspacePath string, envVars []string) (string, error) {
 	cmdString := strings.Join(commands, " && ")
 
-	// Configuration du conteneur
 	containerConfig := &container.Config{
 		Image:      imageName,
 		Cmd:        []string{"sh", "-c", cmdString},
@@ -141,24 +139,21 @@ func (e *DockerExecutor) RunJobWithVolume(imageName string, commands []string, w
 		Env:        envVars,
 	}
 
-	// Configuration de l'hôte avec le volume monté
 	hostConfig := &container.HostConfig{
 		Mounts: []mount.Mount{
 			{
 				Type:   mount.TypeBind,
-				Source: workspacePath,        // Chemin sur l'hôte
-				Target: "/workspace",         // Chemin dans le conteneur
+				Source: workspacePath,
+				Target: "/workspace",
 			},
 		},
 	}
 
-	// Créer le conteneur
 	resp, err := e.cli.ContainerCreate(e.ctx, containerConfig, hostConfig, nil, nil, "")
 	if err != nil {
 		return "", err
 	}
 
-	// Démarrer le conteneur
 	err = e.cli.ContainerStart(e.ctx, resp.ID, container.StartOptions{})
 	return resp.ID, err
 }
@@ -174,10 +169,10 @@ func (e *DockerExecutor) GetLogs(containerID string) (io.ReadCloser, error) {
 func (e *DockerExecutor) WaitForContainer(containerID string) (int64, error) {
 	statusCh, errCh := e.cli.ContainerWait(e.ctx, containerID, container.WaitConditionNotRunning)
 	select {
-	case err := <-errCh:
-		return 0, err
-	case status := <-statusCh:
-		return status.StatusCode, nil
+		case err := <-errCh:
+			return 0, err
+		case status := <-statusCh:
+			return status.StatusCode, nil
 	}
 }
 
@@ -191,7 +186,7 @@ func (e *DockerExecutor) RemoveContainer(containerID string) error {
 // DeployCompose deploys using docker-compose with rollback capability
 func (e *DockerExecutor) DeployCompose(workDir, composeFile, projectName string) (string, error) {
 	var logs strings.Builder
-	
+
 	baseArgs := []string{"compose"}
 	if projectName != "" {
 		baseArgs = append(baseArgs, "-p", projectName)
@@ -222,11 +217,6 @@ func (e *DockerExecutor) DeployCompose(workDir, composeFile, projectName string)
 
 	// 3. Up
 	if err := e.runComposeCommand(workDir, append(baseArgs, "up", "-d", "--build"), &logs); err != nil {
-		// Attempt to resolve container name conflicts automatically
-		// Note: The original logic for conflict resolution was complex and specific.
-		// For clarity, I am simplifying to standard rollback behavior on failure.
-		// If specific conflict resolution is needed, it should be in a dedicated method.
-		
 		performRollback()
 		return logs.String(), fmt.Errorf("docker compose up failed: %w", err)
 	}
@@ -256,7 +246,9 @@ func (e *DockerExecutor) backupContainers(workDir string, baseArgs []string, log
 	if len(output) > 0 {
 		containerIDs := strings.Split(strings.TrimSpace(string(output)), "\n")
 		for _, cid := range containerIDs {
-			if cid == "" { continue }
+			if cid == "" {
+				continue
+			}
 			info, err := e.cli.ContainerInspect(e.ctx, cid)
 			if err != nil {
 				continue
@@ -322,7 +314,9 @@ func (e *DockerExecutor) checkDeploymentHealth(workDir string, baseArgs []string
 
 	expectedServices := make(map[string]bool)
 	for _, s := range strings.Split(strings.TrimSpace(string(outServices)), "\n") {
-		if s != "" { expectedServices[s] = true }
+		if s != "" {
+			expectedServices[s] = true
+		}
 	}
 
 	if len(expectedServices) == 0 {
@@ -337,7 +331,7 @@ func (e *DockerExecutor) checkDeploymentHealth(workDir string, baseArgs []string
 
 	for time.Now().Before(deadline) {
 		<-ticker.C
-		
+
 		cmdHealth := exec.Command("docker", append(baseArgs, "ps", "--all", "--format", "json")...)
 		cmdHealth.Dir = workDir
 		outHealth, err := cmdHealth.Output()
@@ -355,7 +349,9 @@ func (e *DockerExecutor) checkDeploymentHealth(workDir string, baseArgs []string
 		serviceStatus := make(map[string]ComposePsInfo)
 		lines := strings.Split(strings.TrimSpace(string(outHealth)), "\n")
 		for _, line := range lines {
-			if line == "" { continue }
+			if line == "" {
+				continue
+			}
 			var info ComposePsInfo
 			if err := json.Unmarshal([]byte(line), &info); err == nil && info.Service != "" {
 				serviceStatus[info.Service] = info

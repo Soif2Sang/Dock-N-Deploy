@@ -867,24 +867,24 @@ func (db *DB) GetDeploymentByPipeline(pipelineID int) (*models.Deployment, error
 }
 
 // CreateDeploymentLog creates a new log entry for a deployment
-func (db *DB) CreateDeploymentLog(pipelineID int, content string) error {
-	query := `INSERT INTO deployment_logs (pipeline_id, content) VALUES ($1, $2)`
-	_, err := db.conn.Exec(query, pipelineID, content)
+func (db *DB) CreateDeploymentLog(deploymentID int, content string) error {
+	query := `INSERT INTO deployment_logs (deployment_id, content) VALUES ($1, $2)`
+	_, err := db.conn.Exec(query, deploymentID, content)
 	if err != nil {
 		return fmt.Errorf("failed to create deployment log: %w", err)
 	}
 	return nil
 }
 
-// GetDeploymentLogs retrieves all logs for a deployment (via pipeline_id)
-func (db *DB) GetDeploymentLogs(pipelineID int) ([]models.DeploymentLog, error) {
+// GetDeploymentLogs retrieves all logs for a deployment (via deployment_id)
+func (db *DB) GetDeploymentLogs(deploymentID int) ([]models.DeploymentLog, error) {
 	query := `
-		SELECT id, pipeline_id, content, created_at
+		SELECT id, deployment_id, content, created_at
 		FROM deployment_logs
-		WHERE pipeline_id = $1
+		WHERE deployment_id = $1
 		ORDER BY created_at ASC, id ASC
 	`
-	rows, err := db.conn.Query(query, pipelineID)
+	rows, err := db.conn.Query(query, deploymentID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query deployment logs: %w", err)
 	}
@@ -893,7 +893,7 @@ func (db *DB) GetDeploymentLogs(pipelineID int) ([]models.DeploymentLog, error) 
 	var logs []models.DeploymentLog
 	for rows.Next() {
 		var l models.DeploymentLog
-		if err := rows.Scan(&l.ID, &l.PipelineID, &l.Content, &l.CreatedAt); err != nil {
+		if err := rows.Scan(&l.ID, &l.DeploymentID, &l.Content, &l.CreatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan deployment log: %w", err)
 		}
 		logs = append(logs, l)

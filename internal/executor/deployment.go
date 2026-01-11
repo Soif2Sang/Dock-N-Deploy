@@ -64,6 +64,10 @@ type DeploymentExecutor struct {
 }
 
 func NewDeploymentExecutor(db *database.DB, docker *docker.DockerExecutor) *DeploymentExecutor {
+	if docker == nil || db == nil {
+		panic("DeploymentExecutor requires non-nil db and docker dependencies")
+	}
+
 	return &DeploymentExecutor{
 		db:     db,
 		docker: docker,
@@ -71,12 +75,12 @@ func NewDeploymentExecutor(db *database.DB, docker *docker.DockerExecutor) *Depl
 }
 
 // Execute handles the deployment logic (Registry/SSH or Local)
-func (e *DeploymentExecutor) Execute(project *models.Project, params models.PipelineRunParams, workspaceDir string) (string, error) {
-	dLogger := e.newDeploymentLogger(params.PipelineID)
+func (e *DeploymentExecutor) Execute(project *models.Project, params models.PipelineRunParams, workspaceDir string, deploymentID int) (string, error) {
+	dLogger := e.newDeploymentLogger(deploymentID)
 
 	var err error
 	// Check if we should use Registry/SSH flow
-	if project != nil && project.RegistryUser != "" && project.SSHHost != "" {
+	if project.RegistryUser != "" && project.SSHHost != "" {
 		err = e.deployRemote(project, params, workspaceDir, dLogger)
 	} else {
 		err = e.deployLocal(params, workspaceDir, dLogger)
@@ -170,17 +174,13 @@ func (e *DeploymentExecutor) buildAndPushImages(project *models.Project, params 
 
 // executeRemoteSSH handles the SSH connection and remote command execution
 func (e *DeploymentExecutor) executeRemoteSSH(project *models.Project, params models.PipelineRunParams, workspaceDir, overrideFilename string, overrideContent []byte, dLogger *DeploymentLogger) error {
-	if project.SSHHost == "" {
-		dLogger.Log("No SSH host configured, skipping remote deployment.")
-		return nil // Or error? Logic in original was "skip" but effectively success or just doing nothing.
-	}
-
-	client, sshErr := ssh.NewClient(project.SSHHost, project.SSHUser, project.SSHPrivateKey)
-	if sshErr != nil {
-		err := fmt.Errorf("ssh connection failed: %w", sshErr)
+	client, err := ssh.NewClient(project.SSHHost, project.SSHUser, project.SSHPrivateKey)
+	if err != nil {
+		err := fmt.Errorf("ssh connection failed: %w", err)
 		dLogger.Log(err.Error())
 		return err
 	}
+	
 	defer client.Close()
 	dLogger.Log(fmt.Sprintf("Connected via SSH to %s", project.SSHHost))
 
@@ -221,15 +221,20 @@ func (e *DeploymentExecutor) executeRemoteSSH(project *models.Project, params mo
 // === Deployment Helper Struct ===
 
 type DeploymentLogger struct {
-	db         *database.DB
-	pipelineID int
-	logs       strings.Builder
+	db           *database.DB
+	deploymentID int
+	logs         strings.Builder
 }
 
-func (e *DeploymentExecutor) newDeploymentLogger(pipelineID int) *DeploymentLogger {
+// 
+func (e *DeploymentExecutor) newDeploymentLogger(deploymentID int) *DeploymentLogger {
+	if e.db == nil {
+		panic("DeploymentExecutor requires a non-nil db to create DeploymentLogger"
+	}
+
 	return &DeploymentLogger{
-		db:         e.db,
-		pipelineID: pipelineID,
+		db:           e.db,
+		deploymentID: deploymentID,
 	}
 }
 
@@ -238,12 +243,10 @@ func (dLogger *DeploymentLogger) Log(msg string) {
 	dLogger.logs.WriteString(msg + "\n")
 
 	// 2. Stream to DB
-	if dLogger.db != nil && dLogger.pipelineID > 0 {
-		if dbErr := dLogger.db.CreateDeploymentLog(dLogger.pipelineID, msg); dbErr != nil {
-			logger.Error(fmt.Sprintf("Error streaming log to DB: %v", dbErr))
-		}
+	if dbErr := dLogger.db.CreateDeploymentLog(dLogger.deploymentID, msg); dbErr != nil {
+		logger.Error(fmt.Sprintf("Error streaming log to DB: %v", dbErr))
 	}
-
+	
 	// 3. System Log
 	logger.Info(msg)
 }
