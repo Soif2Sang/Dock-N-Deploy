@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/Soif2Sang/imt-cloud-CI-CD-backend.git/internal/database"
@@ -13,6 +12,7 @@ import (
 	"github.com/Soif2Sang/imt-cloud-CI-CD-backend.git/internal/parser/compose"
 	"github.com/Soif2Sang/imt-cloud-CI-CD-backend.git/internal/ssh"
 	"github.com/Soif2Sang/imt-cloud-CI-CD-backend.git/pkg/logger"
+	"github.com/Soif2Sang/imt-cloud-CI-CD-backend.git/pkg/utils"
 )
 
 const deployScript = `#!/bin/bash
@@ -92,7 +92,7 @@ func (e *DeploymentExecutor) Execute(project *models.Project, params models.Pipe
 // deployLocal handles execution on the same machine
 func (e *DeploymentExecutor) deployLocal(params models.PipelineRunParams, workspaceDir string, dLogger *DeploymentLogger) error {
 	dLogger.Log("Using local deployment flow")
-	sanitizedRepoName := sanitizeProjectName(params.RepoName)
+	sanitizedRepoName := utils.SanitizeProjectName(params.RepoName)
 	localLogs, localErr := e.docker.DeployCompose(workspaceDir, params.DeploymentFilename, sanitizedRepoName)
 	dLogger.Log(localLogs)
 	return localErr
@@ -180,11 +180,11 @@ func (e *DeploymentExecutor) executeRemoteSSH(project *models.Project, params mo
 		dLogger.Log(err.Error())
 		return err
 	}
-	
+
 	defer client.Close()
 	dLogger.Log(fmt.Sprintf("Connected via SSH to %s", project.SSHHost))
 
-	sanitizedRepoName := sanitizeProjectName(params.RepoName)
+	sanitizedRepoName := utils.SanitizeProjectName(params.RepoName)
 	remoteDir := fmt.Sprintf("deploy/%s", sanitizedRepoName)
 	client.RunCommand("mkdir -p " + remoteDir)
 
@@ -226,7 +226,6 @@ type DeploymentLogger struct {
 	logs         strings.Builder
 }
 
-// 
 func (e *DeploymentExecutor) newDeploymentLogger(deploymentID int) *DeploymentLogger {
 	if e.db == nil {
 		panic("DeploymentExecutor requires a non-nil db to create DeploymentLogger")
@@ -246,7 +245,7 @@ func (dLogger *DeploymentLogger) Log(msg string) {
 	if dbErr := dLogger.db.CreateDeploymentLog(dLogger.deploymentID, msg); dbErr != nil {
 		logger.Error(fmt.Sprintf("Error streaming log to DB: %v", dbErr))
 	}
-	
+
 	// 3. System Log
 	logger.Info(msg)
 }
@@ -263,12 +262,4 @@ func (dLogger *DeploymentLogger) LogBlock(blockName, content string) {
 
 func (dLogger *DeploymentLogger) String() string {
 	return dLogger.logs.String()
-}
-
-// sanitizeProjectName sanitizes the project name for Docker Compose
-func sanitizeProjectName(name string) string {
-	name = strings.ToLower(name)
-	reg := regexp.MustCompile("[^a-z0-9]+")
-	name = reg.ReplaceAllString(name, "-")
-	return strings.Trim(name, "-")
 }

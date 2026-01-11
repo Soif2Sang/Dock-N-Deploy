@@ -10,14 +10,14 @@ import (
 	"github.com/Soif2Sang/imt-cloud-CI-CD-backend.git/internal/models"
 	"github.com/Soif2Sang/imt-cloud-CI-CD-backend.git/internal/parser/pipeline"
 	"github.com/Soif2Sang/imt-cloud-CI-CD-backend.git/pkg/logger"
+	"github.com/Soif2Sang/imt-cloud-CI-CD-backend.git/pkg/utils"
 )
 
 // runPipelineLogic executes the CI/CD pipeline logic
 func (s *Server) runPipelineLogic(params models.PipelineRunParams) {
 	project, _ := s.db.GetProject(params.ProjectID)
 
-	// Create a unique workspace directory
-	workspaceDir := filepath.Join("/tmp", "cicd-workspaces", fmt.Sprintf("%s-%s-%d", params.RepoName, params.CommitHash[:8], time.Now().Unix()))
+	workspaceDir := filepath.Join(os.TempDir(), "cicd-workspaces", fmt.Sprintf("%s-%s-%d", utils.SanitizeProjectName(params.RepoName), params.CommitHash[:8], time.Now().Unix()))
 
 	logger.Info(fmt.Sprintf("Starting pipeline for %s", params.RepoName))
 	logger.Info(fmt.Sprintf("Cloning repository to %s", workspaceDir))
@@ -88,34 +88,39 @@ func (s *Server) runPipelineLogic(params models.PipelineRunParams) {
 			// Attempt Rollback
 			rollbackSuccess := false
 			lastPipeline, _ := s.db.GetLastSuccessfulPipeline(project.ID)
-			logger.Info(fmt.Sprintf("Attempting rollback to commit %s", lastPipeline.CommitHash))
 
-			// Prepare rollback params
-			rollbackParams := params
-			rollbackParams.CommitHash = lastPipeline.CommitHash
-			// Note: We use the same config filenames as current project settings.
-
-			// Create unique workspace for rollback
-			rollbackDir := filepath.Join("/tmp", "cicd-workspaces", fmt.Sprintf("%s-rollback-%s-%d", params.RepoName, rollbackParams.CommitHash[:8], time.Now().Unix()))
-
-			logger.Info(fmt.Sprintf("Cloning rollback commit to %s", rollbackDir))
-			if cloneErr := git.Clone(rollbackParams.RepoURL, rollbackParams.Branch, rollbackDir, rollbackParams.AccessToken, rollbackParams.CommitHash); cloneErr == nil {
-				defer git.Cleanup(rollbackDir)
-
-				// Log rollback start
-				s.db.CreateDeploymentLog(deployment.ID, "=== ROLLBACK STARTED ===")
-
-				// Run deployment for old version using delegated executor
-				_, rbErr := s.deploymentExecutor.Execute(project, rollbackParams, rollbackDir, deployment.ID)
-
-				if rbErr == nil {
-					rollbackSuccess = true
-					logger.Info("Rollback successful")
-				} else {
-					logger.Error("Rollback failed: " + rbErr.Error())
-				}
+			if lastPipeline == nil {
+				logger.Info("No previous successful pipeline found; skipping rollback")
 			} else {
-				logger.Error("Rollback clone failed: " + cloneErr.Error())
+				logger.Info(fmt.Sprintf("Attempting rollback to commit %s", lastPipeline.CommitHash))
+
+				// Prepare rollback params
+				rollbackParams := params
+				rollbackParams.CommitHash = lastPipeline.CommitHash
+				// Note: We use the same config filenames as current project settings.
+
+				// Create unique workspace for rollback (use OS temp dir)
+				rollbackDir := filepath.Join(os.TempDir(), "cicd-workspaces", fmt.Sprintf("%s-rollback-%s-%d", utils.SanitizeProjectName(params.RepoName), rollbackParams.CommitHash[:8], time.Now().Unix()))
+
+				logger.Info(fmt.Sprintf("Cloning rollback commit to %s", rollbackDir))
+				if cloneErr := git.Clone(rollbackParams.RepoURL, rollbackParams.Branch, rollbackDir, rollbackParams.AccessToken, rollbackParams.CommitHash); cloneErr == nil {
+					defer git.Cleanup(rollbackDir)
+
+					// Log rollback start
+					s.db.CreateDeploymentLog(deployment.ID, "=== ROLLBACK STARTED ===")
+
+					// Run deployment for old version using delegated executor
+					_, rbErr := s.deploymentExecutor.Execute(project, rollbackParams, rollbackDir, deployment.ID)
+
+					if rbErr == nil {
+						rollbackSuccess = true
+						logger.Info("Rollback successful")
+					} else {
+						logger.Error("Rollback failed: " + rbErr.Error())
+					}
+				} else {
+					logger.Error("Rollback clone failed: " + cloneErr.Error())
+				}
 			}
 
 			pipelineSuccess = false
