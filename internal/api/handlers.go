@@ -39,14 +39,6 @@ func parseIDFromPath(path string, segment int) (int, error) {
 	return strconv.Atoi(parts[segment])
 }
 
-// sanitizeProjectName sanitizes the project name for Docker Compose
-func sanitizeProjectName(name string) string {
-	name = strings.ToLower(name)
-	reg := regexp.MustCompile("[^a-z0-9]+")
-	name = reg.ReplaceAllString(name, "-")
-	return strings.Trim(name, "-")
-}
-
 // === Projects Handlers ===
 
 // handleProjects handles /api/v1/projects
@@ -98,8 +90,7 @@ func (s *Server) listVariables(w http.ResponseWriter, r *http.Request, projectID
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(variables)
+	respondJSON(w, http.StatusOK, variables)
 }
 
 func (s *Server) createVariable(w http.ResponseWriter, r *http.Request, projectID int) {
@@ -121,9 +112,7 @@ func (s *Server) createVariable(w http.ResponseWriter, r *http.Request, projectI
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(v)
+	respondJSON(w, http.StatusCreated, v)
 }
 
 func (s *Server) handleVariable(w http.ResponseWriter, r *http.Request) {
@@ -159,7 +148,7 @@ func (s *Server) deleteVariable(w http.ResponseWriter, r *http.Request, projectI
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	respondJSON(w, http.StatusOK, nil)
 }
 
 func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
@@ -184,11 +173,6 @@ func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
 
 // listProjects returns all projects
 func (s *Server) listProjects(w http.ResponseWriter, r *http.Request) {
-	if s.db == nil {
-		respondError(w, http.StatusServiceUnavailable, "Database not available")
-		return
-	}
-
 	userID, err := getUserIDFromContext(r)
 	if err != nil {
 		respondError(w, http.StatusUnauthorized, "Unauthorized")
@@ -207,11 +191,6 @@ func (s *Server) listProjects(w http.ResponseWriter, r *http.Request) {
 
 // createProject creates a new project
 func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
-	if s.db == nil {
-		respondError(w, http.StatusServiceUnavailable, "Database not available")
-		return
-	}
-
 	var newProject models.NewProject
 	if err := json.NewDecoder(r.Body).Decode(&newProject); err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid request body")
@@ -242,10 +221,6 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 
 // getProject returns a project by ID
 func (s *Server) getProject(w http.ResponseWriter, r *http.Request, projectID int) {
-	if s.db == nil {
-		respondError(w, http.StatusServiceUnavailable, "Database not available")
-		return
-	}
 
 	userID, err := getUserIDFromContext(r)
 	if err != nil {
@@ -287,10 +262,6 @@ func (s *Server) getProject(w http.ResponseWriter, r *http.Request, projectID in
 
 // updateProject updates an existing project
 func (s *Server) updateProject(w http.ResponseWriter, r *http.Request, projectID int) {
-	if s.db == nil {
-		respondError(w, http.StatusServiceUnavailable, "Database not available")
-		return
-	}
 
 	userID, err := getUserIDFromContext(r)
 	if err != nil {
@@ -332,10 +303,6 @@ func (s *Server) updateProject(w http.ResponseWriter, r *http.Request, projectID
 
 // deleteProject deletes a project
 func (s *Server) deleteProject(w http.ResponseWriter, r *http.Request, projectID int) {
-	if s.db == nil {
-		respondError(w, http.StatusServiceUnavailable, "Database not available")
-		return
-	}
 
 	userID, err := getUserIDFromContext(r)
 	if err != nil {
@@ -359,7 +326,7 @@ func (s *Server) deleteProject(w http.ResponseWriter, r *http.Request, projectID
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	respondJSON(w, http.StatusNoContent, nil)
 }
 
 // === Project Members Handlers ===
@@ -408,10 +375,6 @@ func (s *Server) handleProjectMember(w http.ResponseWriter, r *http.Request) {
 
 // listProjectMembers returns all members of a project
 func (s *Server) listProjectMembers(w http.ResponseWriter, r *http.Request, projectID int) {
-	if s.db == nil {
-		respondError(w, http.StatusServiceUnavailable, "Database not available")
-		return
-	}
 
 	members, err := s.db.GetProjectMembers(projectID)
 	if err != nil {
@@ -425,10 +388,6 @@ func (s *Server) listProjectMembers(w http.ResponseWriter, r *http.Request, proj
 
 // inviteMember adds a user to a project by email
 func (s *Server) inviteMember(w http.ResponseWriter, r *http.Request, projectID int) {
-	if s.db == nil {
-		respondError(w, http.StatusServiceUnavailable, "Database not available")
-		return
-	}
 
 	userID, err := getUserIDFromContext(r)
 	if err != nil {
@@ -481,10 +440,6 @@ func (s *Server) inviteMember(w http.ResponseWriter, r *http.Request, projectID 
 
 // removeProjectMember removes a member
 func (s *Server) removeProjectMember(w http.ResponseWriter, r *http.Request, projectID, targetUserID int) {
-	if s.db == nil {
-		respondError(w, http.StatusServiceUnavailable, "Database not available")
-		return
-	}
 
 	userID, err := getUserIDFromContext(r)
 	if err != nil {
@@ -557,10 +512,6 @@ func (s *Server) handlePipeline(w http.ResponseWriter, r *http.Request) {
 
 // listPipelines returns all pipelines for a project
 func (s *Server) listPipelines(w http.ResponseWriter, r *http.Request, projectID int) {
-	if s.db == nil {
-		respondError(w, http.StatusServiceUnavailable, "Database not available")
-		return
-	}
 
 	// Verify project exists
 	_, err := s.db.GetProject(projectID)
@@ -581,11 +532,6 @@ func (s *Server) listPipelines(w http.ResponseWriter, r *http.Request, projectID
 
 // triggerPipeline triggers a new pipeline for a project
 func (s *Server) triggerPipeline(w http.ResponseWriter, r *http.Request, projectID int) {
-	if s.db == nil {
-		respondError(w, http.StatusServiceUnavailable, "Database not available")
-		return
-	}
-
 	// Get project
 	project, err := s.db.GetProject(projectID)
 	if err != nil {
@@ -638,17 +584,12 @@ func (s *Server) triggerPipeline(w http.ResponseWriter, r *http.Request, project
 	}
 
 	go s.runPipelineLogic(params)
-	
+
 	respondJSON(w, http.StatusCreated, pipeline)
 }
 
 // getPipeline returns a specific pipeline
 func (s *Server) getPipeline(w http.ResponseWriter, r *http.Request, projectID, pipelineID int) {
-	if s.db == nil {
-		respondError(w, http.StatusServiceUnavailable, "Database not available")
-		return
-	}
-
 	// Verify project exists
 	_, err := s.db.GetProject(projectID)
 	if err != nil {
@@ -727,10 +668,6 @@ func (s *Server) handleJob(w http.ResponseWriter, r *http.Request) {
 
 // listJobs returns all jobs for a pipeline
 func (s *Server) listJobs(w http.ResponseWriter, r *http.Request, projectID, pipelineID int) {
-	if s.db == nil {
-		respondError(w, http.StatusServiceUnavailable, "Database not available")
-		return
-	}
 
 	// Verify project exists
 	_, err := s.db.GetProject(projectID)
@@ -758,10 +695,6 @@ func (s *Server) listJobs(w http.ResponseWriter, r *http.Request, projectID, pip
 
 // getJob returns a specific job
 func (s *Server) getJob(w http.ResponseWriter, r *http.Request, projectID, pipelineID, jobID int) {
-	if s.db == nil {
-		respondError(w, http.StatusServiceUnavailable, "Database not available")
-		return
-	}
 
 	// Verify project exists
 	_, err := s.db.GetProject(projectID)
@@ -825,10 +758,6 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 
 // getJobLogs returns logs for a specific job
 func (s *Server) getJobLogs(w http.ResponseWriter, r *http.Request, projectID, pipelineID, jobID int) {
-	if s.db == nil {
-		respondError(w, http.StatusServiceUnavailable, "Database not available")
-		return
-	}
 
 	// Verify project exists
 	_, err := s.db.GetProject(projectID)
@@ -878,11 +807,6 @@ func (s *Server) handleDeployment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.db == nil {
-		respondError(w, http.StatusServiceUnavailable, "Database not available")
-		return
-	}
-
 	// Verify project exists
 	_, err = s.db.GetProject(projectID)
 	if err != nil {
@@ -917,11 +841,6 @@ func (s *Server) handleDeploymentLogs(w http.ResponseWriter, r *http.Request) {
 	pipelineID, err := parseIDFromPath(r.URL.Path, 5)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid pipeline ID")
-		return
-	}
-
-	if s.db == nil {
-		respondError(w, http.StatusServiceUnavailable, "Database not available")
 		return
 	}
 
@@ -966,7 +885,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 // handleGitHubWebhook handles incoming GitHub push webhooks
 func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -974,8 +893,7 @@ func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 	eventType := r.Header.Get("X-GitHub-Event")
 	if eventType != "push" {
 		logger.Info("Ignoring non-push event: " + eventType)
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"message": "event ignored"})
+		respondJSON(w, http.StatusAccepted, map[string]string{"message": "event ignored"})
 		return
 	}
 
@@ -983,15 +901,14 @@ func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 	var pushEvent models.PushEvent
 	if err := json.NewDecoder(r.Body).Decode(&pushEvent); err != nil {
 		logger.Error("Failed to parse webhook payload: " + err.Error())
-		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		respondError(w, http.StatusBadRequest, "Invalid JSON payload")
 		return
 	}
 
 	// Ignore branch deletions
 	if pushEvent.Deleted {
 		logger.Info("Ignoring branch deletion event")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"message": "deletion ignored"})
+		respondJSON(w, http.StatusAccepted, map[string]string{"message": "deletion ignored"})
 		return
 	}
 
@@ -1003,24 +920,21 @@ func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 		pushEvent.Repository.FullName, branch, commitHash[:8])
 
 	project, err := s.db.FindProjectByUrl(pushEvent.Repository.CloneURL)
-	if (err != nil || project == nil ) {
+	if err != nil || project == nil {
 		logger.Error(fmt.Sprintf("Project not found for repo %s. Ignoring webhook.", pushEvent.Repository.CloneURL))
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": fmt.Sprintf("Project not found for repo %s. Ignoring webhook.", pushEvent.Repository.CloneURL),
-		})
+		respondError(w, http.StatusNotFound, "Project not found")
 		return
 	}
 
 	pipeline, err := s.db.CreatePipeline(project.ID, branch, commitHash)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to create pipeline record: %v", err))
-		w.WriteHeader(http.StatusInternalServerError)
+		respondError(w, http.StatusInternalServerError, "Failed to create pipeline record")
 		return
 	}
 
 	logger.Info(fmt.Sprintf("Pipeline created with ID: %d", pipeline.ID))
-	
+
 	s.db.UpdatePipelineStatus(pipeline.ID, "running")
 
 	params := models.PipelineRunParams{
@@ -1037,11 +951,8 @@ func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 
 	go s.runPipelineLogic(params)
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "Pipeline triggered",
-		"branch":  branch,
-		"commit":  commitHash,
+	respondJSON(w, http.StatusAccepted, map[string]interface{}{
+		"message": "pipeline triggered",
+		"id":      pipeline.ID,
 	})
 }
